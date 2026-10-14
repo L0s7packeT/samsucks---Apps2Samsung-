@@ -8,6 +8,8 @@ on:
       - 'scripts/build-wgt.sh'
       - 'tests/**'
       - '.github/workflows/build-wgt.yml'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -61,6 +63,7 @@ jobs:
           retention-days: 30
 
       - name: Publish downloadable WGT release
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -68,5 +71,5 @@ jobs:
             "build/samsucks-tizen6-unsigned.wgt" \
             --target "${GITHUB_SHA}" \
             --title "SamSUCKS Tizen 6.0 - Build ${GITHUB_RUN_NUMBER}" \
-            --notes "Tizen 6.0 WGT for Apps2Samsung Custom WGT/TPK. Fixed live audio-track mapping and verification with same-position recovery, automatic cleanup of abandoned HLS jobs when returning to Original, and compatible audio passthrough requests during video transcoding. Run-time Direct Play and audio behavior must be verified on the TV." \
+            --notes "Tizen 6.0 WGT for Apps2Samsung. v0.1.4: Recognize Samsung audio MIME codecs (AC3/EAC3/TrueHD); avoid unstable automatic reopening when live track verification fails; suppress stale AVPlay callbacks; stop the previous Plex HLS session before returning to Original Direct Play. Changes passed automated tests; native TV playback and quality transitions still require testing." \
             --latest

@@ -16,6 +16,14 @@ const samsungTracks = [
 assert.equal(matchAudioTrack(plexTracks, plexTracks[1], samsungTracks).index, 5);
 assert.equal(matchAudioTrack(plexTracks, plexTracks[0], samsungTracks).index, 3);
 assert.equal(matchAudioTrack(plexTracks, plexTracks[2], samsungTracks).index, 8);
+const samsungMimeTracks = [
+  { type: 'AUDIO', index: 1, extra_info: '{"fourCC":"audio/x-truehd","language":"eng","channels":"8"}' },
+  { type: 'AUDIO', index: 2, extra_info: '{"fourCC":"audio/x-ac3","language":"eng","channels":"6"}' },
+  { type: 'AUDIO', index: 3, extra_info: '{"fourCC":"audio/x-eac3","language":"fra","channels":"6"}' },
+];
+assert.equal(matchAudioTrack(plexTracks, plexTracks[0], samsungMimeTracks).index, 1);
+assert.equal(matchAudioTrack(plexTracks, plexTracks[1], samsungMimeTracks).index, 2);
+assert.equal(matchAudioTrack(plexTracks, plexTracks[2], samsungMimeTracks).index, 3);
 assert.equal(matchAudioTrack(plexTracks, plexTracks[1], samsungTracks.slice(1)), null);
 assert.equal(matchAudioTrack(
   [{ id: 20, codec: 'ac3', languageCode: 'en', channels: 6 }],
@@ -46,10 +54,13 @@ assert.deepEqual(stopped, ['hls-a', 'hls-b', 'failed-manifest', 'hls-c']);
 // AVPlay track index switches are checked against the active track reported
 // by the hardware API rather than treating the void return as success.
 let activeIndex = 3;
+const avListeners = [];
+const playerErrors = [];
 globalThis.webapis = {
   avplay: {
     open() {}, stop() {}, close() {}, setDisplayRect() {}, setDisplayMethod() {},
-    setListener() {}, prepareAsync(yes) { yes(); }, play() {}, pause() {},
+    setListener(callbacks) { avListeners.push(callbacks); },
+    prepareAsync(yes) { yes(); }, play() {}, pause() {},
     getTotalTrackInfo() { return samsungTracks; },
     getCurrentStreamInfo() {
       return [{ type: 'VIDEO', index: 0 }, { type: 'AUDIO', index: activeIndex }];
@@ -70,11 +81,20 @@ const stage = {
   removeChild(el) { el.parentNode = null; },
 };
 const { createPlayer } = await import('../app/js/platform/player.js');
-const backend = createPlayer(stage, {});
+const backend = createPlayer(stage, { onError: value => playerErrors.push(value) });
 assert.equal(backend.audioTracks().length, 3);
 assert.equal(backend.currentAudioTrack().index, 3);
 assert.equal(backend.selectAudio(5), true);
 assert.equal(backend.currentAudioTrack().index, 5);
+backend.open('http://example.invalid/first');
+backend.open('http://example.invalid/second');
+avListeners[0].onerror('old failure');
+assert.deepEqual(playerErrors, []);
+avListeners[1].onerror('current failure');
+assert.deepEqual(playerErrors, ['current failure']);
+backend.close();
+avListeners[1].onerror('late failure');
+assert.deepEqual(playerErrors, ['current failure']);
 backend.destroy();
 
 console.log('Audio-track mapping, AVPlay verification and transcode session cleanup passed');
