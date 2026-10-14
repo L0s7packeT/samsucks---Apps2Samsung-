@@ -104,7 +104,7 @@ export class Server {
 
   // HLS URL for content the TV can't direct play. Video is passed through when
   // possible; only the audio (e.g. DTS) or container gets converted.
-  transcodeUrl(item, { session, offsetMs = 0, mediaIndex = 0, maxBitrate = 0, resolution = '3840x2160', forceVideoTranscode = false, clientSession = session, subtitleStreamID } = {}) {
+  transcodeUrl(item, { session, offsetMs = 0, mediaIndex = 0, maxBitrate = 0, resolution = '3840x2160', forceVideoTranscode = false, limitBitrate = forceVideoTranscode, clientSession = session, audioStreamID, subtitleStreamID, burnSubtitles = !!subtitleStreamID } = {}) {
     const extra = [
       'add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264,hevc&audioCodec=aac,ac3,eac3)',
       'add-direct-play-profile(type=videoProfile&container=mp4,mkv&videoCodec=h264,hevc&audioCodec=aac,ac3,eac3)',
@@ -117,12 +117,13 @@ export class Server {
       // AAC/AC3/EAC3 when supported by the HLS target; TrueHD still converts.
       directPlay: 0, directStream: forceVideoTranscode ? 0 : 1, directStreamAudio: 1,
       offset: Math.floor(offsetMs / 1000),
-      videoQuality: forceVideoTranscode ? 99 : 100, videoResolution: resolution,
-      // Original quality: do not constrain the source bitrate in the HLS fallback.
-      // Use a generous bound for Plex's API instead of its previous 40 Mbps cap.
-      maxVideoBitrate: forceVideoTranscode ? maxBitrate : 200000,
-      videoBitrate: forceVideoTranscode ? maxBitrate : undefined,
-      subtitles: subtitleStreamID ? 'burn' : 'none', subtitleSize: 100,
+      // Burning bitmap subtitles requires video encoding, but must not
+      // silently apply the 40 Mbps cap to the Original quality setting.
+      videoQuality: limitBitrate ? 99 : 100, videoResolution: resolution,
+      maxVideoBitrate: limitBitrate ? maxBitrate : 200000,
+      videoBitrate: limitBitrate ? maxBitrate : undefined,
+      audioStreamID, subtitleStreamID,
+      subtitles: burnSubtitles ? 'burn' : 'none', subtitleSize: 100,
       audioBoost: 100, location: this.local ? 'lan' : 'wan', copyts: 1,
       session, 'X-Plex-Session-Identifier': clientSession,
       'X-Plex-Client-Profile-Extra': extra,
