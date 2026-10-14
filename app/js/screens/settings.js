@@ -54,10 +54,15 @@ export function SettingsScreen() {
   async function retryLan() {
     setText(status, 'Checking local Plex addresses…');
     try {
+      const oldUri = session.server && session.server.uri;
       await reconnect({ localOnly: true });
       if (!alive) return;
-      setText(status, 'Local connection selected.');
-      build();
+      if (session.server && session.server.uri !== oldUri) {
+        restart(); // Refresh cached home art and server-dependent screens.
+      } else {
+        setText(status, 'Already connected to the local server.');
+        build();
+      }
     } catch (e) {
       if (!alive) return;
       setText(status, 'LAN discovery failed: ' + e.message + '. Try a manual LAN address.');
