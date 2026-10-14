@@ -14,6 +14,8 @@ import * as router from '../router.js';
 import { log, warn, error } from '../util/log.js';
 import { request } from '../plex/client.js';
 import { parseSubtitles, CueTrack } from '../player/subtitles.js';
+import { matchAudioTrack } from '../player/audio-tracks.js';
+import { TranscodeSessions } from '../player/transcode-sessions.js';
 
 // What a 2022 Samsung (Tizen 6.5) decodes natively. No DTS on 2018+ models.
 const DIRECT = {
@@ -80,6 +82,7 @@ export function PlayerScreen(initial, { offset = null } = {}) {
   const panel = h('div', 'tracks hidden', el);
   const upnext = h('div', 'upnext hidden', el);
   const errorEl = h('div', 'player-error hidden', el);
+  const noticeEl = h('div', 'player-notice hidden', el);
 
   let item = initial;
   let media = null;
@@ -121,7 +124,11 @@ export function PlayerScreen(initial, { offset = null } = {}) {
   let cueTrack = null;
   let cueTimer = 0;
   let cueFor = null;
+  let noticeTimer = 0;
+  let switching = false;
+  let lastAudioVerified = true;
   const playSession = uuid();
+  const transcodes = new TranscodeSessions(id => session.server.stopTranscode(id));
 
   const player = createPlayer(stage, {
     onTime(ms) {
@@ -211,63 +218,121 @@ export function PlayerScreen(initial, { offset = null } = {}) {
     return !qualityKbps && directVideo && subsOk ? 'direct' : 'hls';
   }
 
+  function showNotice(message) {
+    clearTimeout(noticeTimer);
+    setText(noticeEl, message);
+    noticeEl.classList.remove('hidden');
+    noticeTimer = setTimeout(() => noticeEl.classList.add('hidden'), 6000);
+  }
+
   async function open(atMs) {
     const server = session.server;
     const t0 = Date.now();
+    const playbackMode = mode;
+    const nextTranscode = playbackMode === 'hls' ? uuid() : null;
     started = false;
     toggleClass(spinner, 'on', true);
-    let url;
-    if (mode === 'direct') {
-      base = 0;
-      url = server.url(part.key);
-    } else {
-      base = atMs;
-      // Burn in only what we can't draw ourselves (image subs, embedded text).
-      const burn = subStream && !isSidecarText(subStream);
-      url = server.transcodeUrl(item, {
-        session: playSession, offsetMs: atMs,
-        maxBitrate: qualityKbps || 40000,
-        forceVideoTranscode: qualityKbps > 0,
-        subtitleStreamID: burn ? subStream.id : undefined,
-      });
-      // PMS 1.42+ rejects start.m3u8 unless a decision was made for the session first.
-      const decision = await request(url.replace('/start.m3u8', '/decision'));
-      const mc = decision.MediaContainer || {};
-      if (mc.generalDecisionCode && mc.generalDecisionCode >= 2000) throw new Error(mc.generalDecisionText || 'Server refused to convert this file');
+    try {
+      let url;
+      if (playbackMode === 'direct') {
+        base = 0;
+        url = server.url(part.key);
+      } else {
+        base = atMs;
+        // Burn in only subtitles that cannot be rendered as a sidecar.
+        const burn = subStream && !isSidecarText(subStream);
+        url = server.transcodeUrl(item, {
+          session: nextTranscode, offsetMs: atMs,
+          maxBitrate: qualityKbps || 40000,
+          forceVideoTranscode: qualityKbps > 0,
+          subtitleStreamID: burn ? subStream.id : undefined,
+        });
+        // Recent Plex releases require a decision before start.m3u8.
+        const decision = await request(url.replace('/start.m3u8', '/decision'));
+        const mc = decision.MediaContainer || {};
+        if (mc.generalDecisionCode && mc.generalDecisionCode >= 2000) {
+          throw new Error(mc.generalDecisionText || 'Server refused to convert this file');
+        }
+      }
+      if (!alive) {
+        if (nextTranscode) transcodes.discard(nextTranscode);
+        return;
+      }
+      log('play', playbackMode, item.title, media.container + '/' + media.videoCodec +
+        '/' + (audioStream && audioStream.codec), 'at', clock(atMs));
+      player.open(url, { uhd: media.videoResolution === '4k' && supports4K() });
+      await player.prepare();
+      if (!alive) {
+        if (nextTranscode) transcodes.discard(nextTranscode);
+        player.close();
+        return;
+      }
+      if (playbackMode === 'direct' && atMs > 0) await player.seek(atMs);
+      syncSidecar();
+      player.play();
+      paused = false;
+      // AVPlay only supports changing AUDIO in the PLAYING state.
+      lastAudioVerified = playbackMode === 'direct' ? await applyTracks() : true;
+      if (!alive) {
+        if (nextTranscode) transcodes.discard(nextTranscode);
+        player.close();
+        return;
+      }
+      // Stop the old HLS job only after AVPlay has opened the new stream.
+      // Every HLS restart has its own session ID, so this cannot stop the new job.
+      transcodes.replace(nextTranscode).catch(e => warn('transcode cleanup failed', e.message));
+      started = true;
+      position = atMs;
+      toggleClass(el, 'paused', false);
+      toggleClass(spinner, 'on', false);
+      log('playing after ' + (Date.now() - t0) + 'ms (' + playbackMode + ')');
+      report('playing');
+      startTimeline();
+    } catch (e) {
+      if (nextTranscode) transcodes.discard(nextTranscode)
+        .catch(err => warn('failed transcode cleanup', err.message));
+      toggleClass(spinner, 'on', false);
+      throw e;
     }
-    log('play', mode, item.title, media.container + '/' + media.videoCodec + '/' + (audioStream && audioStream.codec), 'at', clock(atMs));
-    player.open(url, { uhd: media.videoResolution === '4k' && supports4K() });
-    await player.prepare();
-    if (!alive) return;
-    if (mode === 'direct' && atMs > 0) await player.seek(atMs);
-    syncSidecar();
-    player.play();
-    // Samsung requires PLAYING state for audio/text track selection.
-    if (mode === 'direct') applyTracks();
-    paused = false;
-    started = true;
-    position = atMs;
-    toggleClass(el, 'paused', false);
-    toggleClass(spinner, 'on', false);
-    log('playing after ' + (Date.now() - t0) + 'ms (' + mode + ')');
-    report('playing');
-    startTimeline();
   }
 
-  // Map Plex's chosen streams onto AVPlay's track list (same file order).
-  function applyTracks() {
-    const t = player.tracks();
-    if (audioStream && t.audio.length > 1) {
-      const pos = streamsOf(part, 2).indexOf(audioStream);
-      if (pos >= 0 && t.audio[pos] != null) player.selectAudio(t.audio[pos]);
+  function audioTarget() {
+    return matchAudioTrack(streamsOf(part, 2), audioStream, player.audioTracks());
+  }
+
+  async function selectDirectAudio() {
+    if (!audioStream) return true;
+    const target = audioTarget();
+    if (!target) {
+      warn('could not identify AVPlay audio track for', audioStream.displayTitle || audioStream.codec);
+      return false;
     }
+    const targetIndex = Number(target.index);
+    let current = player.currentAudioTrack();
+    if (current && Number(current.index) === targetIndex) return true;
+    if (!player.selectAudio(targetIndex)) return false;
+    // Some Samsung firmware applies audio selection asynchronously.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 160));
+      if (!alive) return false;
+      current = player.currentAudioTrack();
+      if (current && Number(current.index) === targetIndex) return true;
+    }
+    warn('AVPlay audio track could not be verified', targetIndex, current && current.index);
+    return false;
+  }
+
+  async function applyTracks() {
+    const verified = await selectDirectAudio();
+    const tracks = player.tracks();
     if (isEmbeddedText(subStream)) {
       const pos = streamsOf(part, 3).filter(isEmbeddedText).indexOf(subStream);
-      if (pos >= 0 && t.text[pos] != null) player.selectText(t.text[pos]);
+      if (pos >= 0 && tracks.text[pos] != null) player.selectText(tracks.text[pos]);
     } else {
       player.selectText(null);
       setText(subs, '');
     }
+    return verified;
   }
 
   // Start/stop drawing an external subtitle file for the current selection.
