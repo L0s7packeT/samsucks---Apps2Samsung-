@@ -6,7 +6,6 @@ WGT="$ROOT/build/samsucks-tizen6-unsigned.wgt"
 rm -rf "$OUT"
 mkdir -p "$OUT"
 cp -R "$ROOT/app/." "$OUT/"
-rm -rf "$OUT/js/dev"
 VERSION="$(sed -n 's/.*<widget.* version="\([^"]*\)".*/\1/p' "$OUT/config.xml")"
 [ -n "$VERSION" ] || { echo "Missing widget version" >&2; exit 1; }
 sed -i.bak "s/^export const VERSION = .*/export const VERSION = '$VERSION';/" "$OUT/js/config.js"
