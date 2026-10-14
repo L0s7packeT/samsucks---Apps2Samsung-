@@ -49,6 +49,7 @@ export async function reconnect({ localOnly = false, ignoreOverride = false } = 
   const uri = await connect(resource, { localOnly, ignoreOverride });
   // Do not override a server manually selected while discovery was running.
   if (session.server !== previous) return session.server;
+  if (previous && previous.uri === uri && previous.token === resource.accessToken) return previous;
   useServer(resource, uri);
   log('reconnected', resource.name, uri);
   return session.server;
