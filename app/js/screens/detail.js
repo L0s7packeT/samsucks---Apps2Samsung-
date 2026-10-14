@@ -8,6 +8,7 @@ import { clearLogo } from './home.js';
 import * as icons from '../ui/icons.js';
 import * as router from '../router.js';
 import { playItem } from '../nav.js';
+import { PlaybackOptionsScreen } from './playback-options.js';
 import { error } from '../util/log.js';
 
 const SHIFT = 400; // how far the body slides up to reveal seasons/episodes
@@ -36,6 +37,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
   let zone = 'buttons';
   let alive = true;
   let shown = false;
+  let preplay = null;
 
   const isShowLike = () => item.type === 'show';
 
@@ -73,6 +75,21 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     return eps.find(e => e.viewOffset) || eps.find(e => !e.viewCount) || eps[0] || null;
   }
 
+  function playSelected(t, offset) {
+    const options = { offset };
+    if (preplay && String(preplay.ratingKey) === String(t.ratingKey)) options.preplay = preplay;
+    playItem(t, options);
+  }
+
+  function openPlaybackOptions(t) {
+    router.push(PlaybackOptionsScreen(t, {
+      onApply(choice) {
+        preplay = choice;
+        renderButtons();
+      },
+    }));
+  }
+
   function renderButtons() {
     buttonsEl.innerHTML = '';
     buttons = [];
@@ -86,12 +103,14 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     if (t) {
       const prefix = isShowLike() ? episodeLabel(t) + '  ' : '';
       if (t.viewOffset) {
-        add(icons.play, prefix + 'Resume ' + clock(t.viewOffset), () => playItem(t, { offset: t.viewOffset }));
-        add(icons.restart, 'From the start', () => playItem(t, { offset: 0 }));
+        add(icons.play, prefix + 'Resume ' + clock(t.viewOffset), () => playSelected(t, t.viewOffset));
+        add(icons.restart, 'From the start', () => playSelected(t, 0));
       } else {
         add(icons.play, isShowLike() ? 'Play ' + prefix : 'Play', () => playItem(t, { offset: 0 }));
       }
     }
+    if (t) add(icons.gear, preplay && String(preplay.ratingKey) === String(t.ratingKey) ?
+      'Playback Options ✓' : 'Playback Options', () => openPlaybackOptions(t));
     const watched = isShowLike() ? item.viewedLeafCount >= item.leafCount : !!item.viewCount;
     add(watched ? icons.check : icons.uncheck, watched ? 'Watched' : 'Mark watched', toggleWatched);
     if (item.type === 'episode' && item.grandparentRatingKey) {
@@ -160,7 +179,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       if (autoplay) {
         autoplay = false;
         const t = target();
-        if (t) playItem(t, { offset: t.viewOffset || 0 });
+        if (t) playSelected(t, t.viewOffset || 0);
       }
     } catch (e) {
       error('detail load failed', e);
