@@ -102,7 +102,7 @@ export class Server {
 
   // HLS URL for content the TV can't direct play. Video is passed through when
   // possible; only the audio (e.g. DTS) or container gets converted.
-  transcodeUrl(item, { session, offsetMs = 0, mediaIndex = 0, maxBitrate = 40000, resolution = '3840x2160', audioStreamID, subtitleStreamID } = {}) {
+  transcodeUrl(item, { session, offsetMs = 0, mediaIndex = 0, maxBitrate = 40000, resolution = '3840x2160', forceVideoTranscode = false, subtitleStreamID } = {}) {
     const extra = [
       'add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264,hevc&audioCodec=aac,ac3,eac3)',
       'add-direct-play-profile(type=videoProfile&container=mp4,mkv&videoCodec=h264,hevc&audioCodec=aac,ac3,eac3)',
@@ -111,9 +111,10 @@ export class Server {
       path: '/library/metadata/' + item.ratingKey,
       mediaIndex, partIndex: 0,
       protocol: 'hls', fastSeek: 1,
-      directPlay: 0, directStream: 1, directStreamAudio: 1,
+      directPlay: 0, directStream: forceVideoTranscode ? 0 : 1, directStreamAudio: 1,
       offset: Math.floor(offsetMs / 1000),
-      videoQuality: 100, videoResolution: resolution, maxVideoBitrate: maxBitrate,
+      videoQuality: 99, videoResolution: resolution, maxVideoBitrate: maxBitrate,
+      videoBitrate: forceVideoTranscode ? maxBitrate : undefined,
       subtitles: subtitleStreamID ? 'burn' : 'none', subtitleSize: 100,
       audioBoost: 100, location: 'lan', copyts: 1,
       session, 'X-Plex-Session-Identifier': session,
@@ -127,7 +128,7 @@ export class Server {
     return request(this.uri + '/library/parts/' + partId, {
       method: 'PUT', token: this.token,
       params: { audioStreamID, subtitleStreamID, allParts: 1 },
-    }).catch(() => {});
+    });
   }
 
   stopTranscode(session) {
