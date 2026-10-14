@@ -57,6 +57,7 @@ function start() {
 }
 
 export function boot() {
+  if (window.__samsucksReady) window.__samsucksReady();
   if (DEV) window.__ss = { router, session, nav };
   log('boot', VERSION, navigator.userAgent);
   registerKeys();
