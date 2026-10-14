@@ -500,48 +500,74 @@ export function PlayerScreen(initial, { offset = null } = {}) {
   }
 
   async function choose(col, opt) {
-    if (col === 2) {
-      if (qualityKbps === opt.kbps) { panel.classList.add('hidden'); showOsd(); return; }
-      const previous = qualityKbps;
-      qualityKbps = opt.kbps;
-      mode = decideMode();
-      triedFallback = false;
-      panel.classList.add('hidden');
-      try {
-        await open(position);
-        store.set('qualityKbps', qualityKbps);
-      } catch (e) {
-        qualityKbps = previous;
-        failed(e.message || String(e));
-      }
-      return;
-    }
-    const oldAudio = audioStream;
-    const oldSub = subStream;
-    if (col === 0) audioStream = opt.stream;
-    else subStream = opt.stream;
+    if (switching) return;
+    switching = true;
     panel.classList.add('hidden');
+    const wasPaused = paused;
     try {
-      await session.server.selectStreams(part.id, {
-        audioStreamID: audioStream ? audioStream.id : undefined,
-        subtitleStreamID: subStream ? subStream.id : 0,
-      });
-      const wanted = decideMode();
-      if (wanted === 'direct' && mode === 'direct') {
-        applyTracks();
-        syncSidecar();
-      } else if (mode === 'hls' && wanted === 'hls' && col === 1 && isSidecarText(subStream) && (!oldSub || isSidecarText(oldSub))) {
-        syncSidecar();
-      } else {
-        mode = wanted;
+      if (col === 2) {
+        if (qualityKbps === opt.kbps) { showOsd(); return; }
+        const previous = qualityKbps;
+        const previousMode = mode;
+        qualityKbps = opt.kbps;
+        mode = decideMode();
         triedFallback = false;
-        await open(position);
+        try {
+          await open(position);
+          store.set('qualityKbps', qualityKbps);
+        } catch (e) {
+          qualityKbps = previous;
+          mode = previousMode;
+          throw e;
+        }
+      } else {
+        const oldAudio = audioStream;
+        const oldSub = subStream;
+        if (col === 0) audioStream = opt.stream;
+        else subStream = opt.stream;
+        try {
+          // Plex remembers the selection for the next direct-play or HLS stream.
+          await session.server.selectStreams(part.id, {
+            audioStreamID: audioStream ? audioStream.id : undefined,
+            subtitleStreamID: subStream ? subStream.id : 0,
+          });
+          const wanted = decideMode();
+          if (wanted === 'direct' && mode === 'direct') {
+            if (col === 0) {
+              const verified = await selectDirectAudio();
+              if (!verified) {
+                // Switching in place failed: reopen the original file using
+                // Plex's saved stream selection, preserving the playhead.
+                warn('reopening direct play to apply selected audio track');
+                await open(position);
+                if (!lastAudioVerified) {
+                  showNotice('Audio switch could not be verified by the TV. The saved Plex track was reapplied.');
+                }
+              }
+            } else {
+              await applyTracks();
+              syncSidecar();
+            }
+          } else if (mode === 'hls' && wanted === 'hls' && col === 1 &&
+              isSidecarText(subStream) && (!oldSub || isSidecarText(oldSub))) {
+            syncSidecar();
+          } else {
+            mode = wanted;
+            triedFallback = false;
+            await open(position);
+          }
+        } catch (e) {
+          audioStream = oldAudio;
+          subStream = oldSub;
+          throw e;
+        }
       }
+      if (wasPaused && started && !paused) togglePause();
       showOsd();
     } catch (e) {
-      audioStream = oldAudio;
-      subStream = oldSub;
       failed(e.message || String(e));
+    } finally {
+      switching = false;
     }
   }
 
@@ -579,6 +605,7 @@ export function PlayerScreen(initial, { offset = null } = {}) {
     report('stopped');
     clearInterval(timelineTimer);
     player.close();
+    transcodes.close().catch(e => warn('transcode cleanup failed', e.message));
     if (item.type !== 'episode') { exit(); return; }
     try { nextItem = await nextEpisode(); } catch (e) { nextItem = null; }
     if (!alive) return;
@@ -612,12 +639,12 @@ export function PlayerScreen(initial, { offset = null } = {}) {
     if (!alive) return;
     alive = false;
     if (started && position < duration) report('stopped');
-    [seekTimer, osdTimer, subTimer].forEach(clearTimeout);
+    [seekTimer, osdTimer, subTimer, noticeTimer].forEach(clearTimeout);
     clearInterval(timelineTimer);
     clearInterval(upnextTimer);
     clearInterval(cueTimer);
     player.destroy();
-    if (mode === 'hls') session.server.stopTranscode(playSession);
+    transcodes.close().catch(e => warn('transcode cleanup failed', e.message));
     document.documentElement.classList.remove('playing');
     setScreenSaver(true);
     document.removeEventListener('visibilitychange', onVisibility);
