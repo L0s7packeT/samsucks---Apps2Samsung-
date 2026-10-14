@@ -51,6 +51,16 @@ const limited = new URL(server.transcodeUrl({ ratingKey: 25 }, {
 assert.equal(limited.searchParams.get('maxVideoBitrate'), '10000');
 assert.equal(limited.searchParams.get('videoBitrate'), '10000');
 assert.equal(limited.searchParams.get('directStream'), '0');
+assert.equal(limited.searchParams.get('directStreamAudio'), '1');
+// Each manifest can use an independent transcode worker without changing
+// the stable Plex client playback session identity.
+const split = new URL(server.transcodeUrl({ ratingKey: 25 }, {
+  session: 'transcode-2', clientSession: 'playback-1',
+  maxBitrate: 10000, forceVideoTranscode: true,
+}));
+assert.equal(split.searchParams.get('session'), 'transcode-2');
+assert.equal(split.searchParams.get('X-Plex-Session-Identifier'), 'playback-1');
+assert.equal(split.searchParams.get('directStreamAudio'), '1');
 
 const remote = new Server({ uri: 'http://188.228.98.15:32400', token: 'test', name: 'Test', id: 'test' });
 const remoteUrl = new URL(remote.transcodeUrl({ ratingKey: 25 }, { session: 'testing' }));
