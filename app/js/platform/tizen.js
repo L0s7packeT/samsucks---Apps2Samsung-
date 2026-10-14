@@ -39,7 +39,11 @@ export function deviceInfo() {
   // PMS has a built-in "Tizen" profile (the official app) that rejects our
   // transcode requests with 400; "Samsung" gets the generic profile plus our
   // own X-Plex-Client-Profile-Extra.
-  return { model, name, platform: isTizen ? 'Samsung' : 'Web' };
+  let platformVersion = '6.0';
+  try {
+    platformVersion = tizen.systeminfo.getCapability('http://tizen.org/feature/platform.version') || platformVersion;
+  } catch (e) {}
+  return { model, name, platform: isTizen ? 'Samsung' : 'Web', platformVersion };
 }
 
 export function supports4K() {
