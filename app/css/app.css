@@ -406,7 +406,21 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
 .setting-value { color: var(--dim); font-weight: 500; }
 .setting.focus { background: var(--cream); color: var(--bg); }
 .setting.focus .setting-value { color: rgba(11, 13, 18, 0.65); }
-.settings-foot { position: absolute; left: 160px; bottom: 64px; font: 500 20px var(--body); color: var(--dim); }
+.settings-foot { position: absolute; left: 160px; bottom: 52px; font: 500 20px var(--body); color: var(--dim); }
+.settings-list .setting { height: 76px; margin-bottom: 10px; font-size: 25px; }
+.setting-label { flex: 0 0 auto; margin-right: 30px; }
+.setting-value { min-width: 0; max-width: 68%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+.settings-status { position: absolute; left: 160px; right: 100px; bottom: 108px; font: 500 22px var(--body); color: var(--dim); }
+.lan-help { position: absolute; top: 250px; left: 160px; font: 500 29px var(--body); color: var(--dim); }
+.lan-input { position: absolute; top: 360px; left: 160px; width: 1330px; height: 95px;
+  padding: 0 28px; border: 3px solid rgba(255,247,230,.3); border-radius: 16px;
+  background: rgba(255,247,230,.09); color: var(--cream); font: 500 40px var(--body); }
+.lan-input.focus { border-color: var(--coral); }
+.lan-hint { position: absolute; top: 475px; left: 160px; font: 500 24px var(--body); color: var(--dim); }
+.lan-actions { position: absolute; top: 600px; left: 160px; display: flex; gap: 18px; }
+.lan-button { width: 305px; min-height: 90px; font: 600 27px var(--body); }
+.lan-status { position: absolute; top: 740px; left: 160px; right: 160px;
+  font: 500 26px/1.4 var(--body); color: var(--dim); }
 
 /* ---------- search ---------- */
 
