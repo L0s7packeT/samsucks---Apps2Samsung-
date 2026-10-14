@@ -17,6 +17,11 @@ assert.equal(matchAudioTrack(plexTracks, plexTracks[1], samsungTracks).index, 5)
 assert.equal(matchAudioTrack(plexTracks, plexTracks[0], samsungTracks).index, 3);
 assert.equal(matchAudioTrack(plexTracks, plexTracks[2], samsungTracks).index, 8);
 assert.equal(matchAudioTrack(plexTracks, plexTracks[1], samsungTracks.slice(1)), null);
+assert.equal(matchAudioTrack(
+  [{ id: 20, codec: 'ac3', languageCode: 'en', channels: 6 }],
+  { id: 20, codec: 'ac3', languageCode: 'en', channels: 6 },
+  [{ type:'AUDIO', index: 2, extra_info: '{"fourCC":"AC3","language":"fra","channels":"6"}' }]
+), null);
 
 // Fallback to ordinal is allowed only if both lists have matching lengths.
 const opaque = [{ type:'AUDIO', index:6 }, { type:'AUDIO', index:7 }, { type:'AUDIO', index:10 }];
