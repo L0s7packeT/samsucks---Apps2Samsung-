@@ -55,8 +55,17 @@ function avplayBackend(container, listener) {
         text: info.filter(t => t.type === 'TEXT').map(t => t.index),
       };
     },
+    audioTracks() {
+      try { return (av.getTotalTrackInfo() || []).filter(t => t.type === 'AUDIO'); }
+      catch (e) { return []; }
+    },
+    currentAudioTrack() {
+      try { return (av.getCurrentStreamInfo() || []).find(t => t.type === 'AUDIO') || null; }
+      catch (e) { return null; }
+    },
     selectAudio(avIndex) {
-      try { av.setSelectTrack('AUDIO', avIndex); return true; } catch (e) { return false; }
+      try { av.setSelectTrack('AUDIO', avIndex); return true; }
+      catch (e) { console.warn('AVPlay audio switch failed', e); return false; }
     },
     selectText(avIndex) {
       try {
@@ -106,6 +115,8 @@ function videoBackend(container, listener) {
     time() { return v.currentTime * 1000; },
     state() { return v.paused ? 'PAUSED' : 'PLAYING'; },
     tracks() { return { audio: [], text: [] }; },
+    audioTracks() { return []; },
+    currentAudioTrack() { return null; },
     selectAudio() { return false; },
     selectText() { return false; },
     suspend() {},
