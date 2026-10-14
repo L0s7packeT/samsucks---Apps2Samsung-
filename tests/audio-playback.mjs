@@ -54,10 +54,13 @@ assert.deepEqual(stopped, ['hls-a', 'hls-b', 'failed-manifest', 'hls-c']);
 // AVPlay track index switches are checked against the active track reported
 // by the hardware API rather than treating the void return as success.
 let activeIndex = 3;
+const avListeners = [];
+const playerErrors = [];
 globalThis.webapis = {
   avplay: {
     open() {}, stop() {}, close() {}, setDisplayRect() {}, setDisplayMethod() {},
-    setListener() {}, prepareAsync(yes) { yes(); }, play() {}, pause() {},
+    setListener(callbacks) { avListeners.push(callbacks); },
+    prepareAsync(yes) { yes(); }, play() {}, pause() {},
     getTotalTrackInfo() { return samsungTracks; },
     getCurrentStreamInfo() {
       return [{ type: 'VIDEO', index: 0 }, { type: 'AUDIO', index: activeIndex }];
@@ -78,11 +81,20 @@ const stage = {
   removeChild(el) { el.parentNode = null; },
 };
 const { createPlayer } = await import('../app/js/platform/player.js');
-const backend = createPlayer(stage, {});
+const backend = createPlayer(stage, { onError: value => playerErrors.push(value) });
 assert.equal(backend.audioTracks().length, 3);
 assert.equal(backend.currentAudioTrack().index, 3);
 assert.equal(backend.selectAudio(5), true);
 assert.equal(backend.currentAudioTrack().index, 5);
+backend.open('http://example.invalid/first');
+backend.open('http://example.invalid/second');
+avListeners[0].onerror('old failure');
+assert.deepEqual(playerErrors, []);
+avListeners[1].onerror('current failure');
+assert.deepEqual(playerErrors, ['current failure']);
+backend.close();
+avListeners[1].onerror('late failure');
+assert.deepEqual(playerErrors, ['current failure']);
 backend.destroy();
 
 console.log('Audio-track mapping, AVPlay verification and transcode session cleanup passed');
