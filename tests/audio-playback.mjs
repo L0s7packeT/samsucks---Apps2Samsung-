@@ -16,6 +16,14 @@ const samsungTracks = [
 assert.equal(matchAudioTrack(plexTracks, plexTracks[1], samsungTracks).index, 5);
 assert.equal(matchAudioTrack(plexTracks, plexTracks[0], samsungTracks).index, 3);
 assert.equal(matchAudioTrack(plexTracks, plexTracks[2], samsungTracks).index, 8);
+const samsungMimeTracks = [
+  { type: 'AUDIO', index: 1, extra_info: '{"fourCC":"audio/x-truehd","language":"eng","channels":"8"}' },
+  { type: 'AUDIO', index: 2, extra_info: '{"fourCC":"audio/x-ac3","language":"eng","channels":"6"}' },
+  { type: 'AUDIO', index: 3, extra_info: '{"fourCC":"audio/x-eac3","language":"fra","channels":"6"}' },
+];
+assert.equal(matchAudioTrack(plexTracks, plexTracks[0], samsungMimeTracks).index, 1);
+assert.equal(matchAudioTrack(plexTracks, plexTracks[1], samsungMimeTracks).index, 2);
+assert.equal(matchAudioTrack(plexTracks, plexTracks[2], samsungMimeTracks).index, 3);
 assert.equal(matchAudioTrack(plexTracks, plexTracks[1], samsungTracks.slice(1)), null);
 assert.equal(matchAudioTrack(
   [{ id: 20, codec: 'ac3', languageCode: 'en', channels: 6 }],
