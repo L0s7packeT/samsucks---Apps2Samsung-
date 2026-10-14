@@ -371,6 +371,11 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
   position: absolute; left: 360px; right: 360px; top: 470px; padding: 40px;
   border-radius: 22px; background: var(--raised); text-align: center; font: 500 30px var(--body);
 }
+.player-notice {
+  position: absolute; left: 320px; right: 320px; bottom: 210px; z-index: 10;
+  padding: 22px 34px; border-radius: 16px; background: rgba(15, 18, 25, 0.94);
+  color: var(--cream); font: 500 24px/1.35 var(--body); text-align: center;
+}
 
 /* ---------- login / picker / settings ---------- */
 
