@@ -342,11 +342,12 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
 .osd-on .subs { bottom: 340px; }
 
 .tracks {
-  position: absolute; right: 0; top: 0; width: 960px; height: 1080px;
-  padding: 110px 72px; display: flex;
-  background: rgba(11, 13, 18, 0.94);
+  position: absolute; right: 0; top: 0; width: 1150px; height: 1080px;
+  padding: 90px 48px; display: flex; gap: 18px;
+  background: rgba(11, 13, 18, 0.96);
 }
-.tracks-col { flex: 1; margin-right: 32px; overflow: hidden; }
+.tracks-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+.tracks-list { flex: 1 1 0; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
 .tracks-head { display: flex; align-items: center; margin-bottom: 24px; font: 600 24px var(--body); color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; }
 .tracks-head svg { width: 30px; height: 30px; margin-right: 12px; }
 .tracks-opt {
