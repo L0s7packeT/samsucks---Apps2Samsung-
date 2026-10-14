@@ -10,10 +10,12 @@ function avplayBackend(container, listener) {
   obj.className = 'av-object';
   container.appendChild(obj);
   let opened = false;
+  let generation = 0;
 
   const api = {
     open(url, { uhd = false } = {}) {
       api.close();
+      const currentGeneration = ++generation;
       av.open(url);
       opened = true;
       av.setDisplayRect(0, 0, 1920, 1080);
@@ -21,15 +23,20 @@ function avplayBackend(container, listener) {
       if (uhd) {
         try { av.setStreamingProperty('SET_MODE_4K', 'TRUE'); } catch (e) { /* not a UHD panel */ }
       }
+      // Callbacks already queued by a previous stream may arrive during
+      // stop()/close()/open(). Never let those mutate the new player state.
+      const valid = () => opened && currentGeneration === generation;
       av.setListener({
-        onbufferingstart: () => listener.onBuffering(true),
+        onbufferingstart: () => { if (valid()) listener.onBuffering(true); },
         onbufferingprogress: () => {},
-        onbufferingcomplete: () => listener.onBuffering(false),
-        oncurrentplaytime: ms => listener.onTime(ms),
-        onstreamcompleted: () => listener.onEnd(),
-        onerror: e => listener.onError(String(e)),
+        onbufferingcomplete: () => { if (valid()) listener.onBuffering(false); },
+        oncurrentplaytime: ms => { if (valid()) listener.onTime(ms); },
+        onstreamcompleted: () => { if (valid()) listener.onEnd(); },
+        onerror: e => { if (valid()) listener.onError(String(e)); },
         onevent: () => {},
-        onsubtitlechange: (duration, text) => listener.onSubtitle(text, Number(duration)),
+        onsubtitlechange: (duration, text) => {
+          if (valid()) listener.onSubtitle(text, Number(duration));
+        },
         ondrmevent: () => {},
       });
     },
@@ -78,6 +85,7 @@ function avplayBackend(container, listener) {
     suspend() { try { av.suspend(); } catch (e) {} },
     restore() { try { av.restore(); } catch (e) {} },
     close() {
+      generation++; // Immediately invalidate callbacks from the stopped stream.
       if (!opened) return;
       opened = false;
       try { av.stop(); } catch (e) {}
