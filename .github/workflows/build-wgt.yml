@@ -8,6 +8,8 @@ on:
       - 'scripts/build-wgt.sh'
       - 'tests/**'
       - '.github/workflows/build-wgt.yml'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -61,6 +63,7 @@ jobs:
           retention-days: 30
 
       - name: Publish downloadable WGT release
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
