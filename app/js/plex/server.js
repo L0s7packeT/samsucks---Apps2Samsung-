@@ -104,7 +104,7 @@ export class Server {
 
   // HLS URL for content the TV can't direct play. Video is passed through when
   // possible; only the audio (e.g. DTS) or container gets converted.
-  transcodeUrl(item, { session, offsetMs = 0, mediaIndex = 0, maxBitrate = 0, resolution = '3840x2160', forceVideoTranscode = false, subtitleStreamID } = {}) {
+  transcodeUrl(item, { session, offsetMs = 0, mediaIndex = 0, maxBitrate = 0, resolution = '3840x2160', forceVideoTranscode = false, clientSession = session, subtitleStreamID } = {}) {
     const extra = [
       'add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264,hevc&audioCodec=aac,ac3,eac3)',
       'add-direct-play-profile(type=videoProfile&container=mp4,mkv&videoCodec=h264,hevc&audioCodec=aac,ac3,eac3)',
@@ -113,6 +113,8 @@ export class Server {
       path: '/library/metadata/' + item.ratingKey,
       mediaIndex, partIndex: 0,
       protocol: 'hls', fastSeek: 1,
+      // DirectStreamAudio is independent of video transcoding. Plex can copy
+      // AAC/AC3/EAC3 when supported by the HLS target; TrueHD still converts.
       directPlay: 0, directStream: forceVideoTranscode ? 0 : 1, directStreamAudio: 1,
       offset: Math.floor(offsetMs / 1000),
       videoQuality: forceVideoTranscode ? 99 : 100, videoResolution: resolution,
@@ -122,7 +124,7 @@ export class Server {
       videoBitrate: forceVideoTranscode ? maxBitrate : undefined,
       subtitles: subtitleStreamID ? 'burn' : 'none', subtitleSize: 100,
       audioBoost: 100, location: this.local ? 'lan' : 'wan', copyts: 1,
-      session, 'X-Plex-Session-Identifier': session,
+      session, 'X-Plex-Session-Identifier': clientSession,
       'X-Plex-Client-Profile-Extra': extra,
       'X-Plex-Token': this.token,
     }));
