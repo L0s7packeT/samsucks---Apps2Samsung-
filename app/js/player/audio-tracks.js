@@ -9,7 +9,7 @@ function details(track) {
 function codec(value) {
   const c = String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   if (['ac3', 'a52'].includes(c)) return 'ac3';
-  if (['eac3', 'ec3', 'ec3'].includes(c)) return 'eac3';
+  if (['eac3', 'ec3'].includes(c)) return 'eac3';
   if (['truehd', 'mlp', 'mlpa', 'trhd'].includes(c)) return 'truehd';
   if (['aac', 'aacl', 'mp4a'].includes(c) || c.startsWith('aac')) return 'aac';
   return c;
@@ -17,9 +17,12 @@ function codec(value) {
 
 function language(value) {
   const s = String(value || '').toLowerCase().split(/[-_]/)[0].trim();
-  const aliases = { eng: 'en', fra: 'fr', fre: 'fr', deu: 'de', ger: 'de',
-    spa: 'es', ita: 'it', por: 'pt', nld: 'nl', dut: 'nl', dan: 'da',
-    nor: 'no', swe: 'sv', fin: 'fi', pol: 'pl', ron: 'ro', rum: 'ro' };
+  const aliases = { eng: 'en', english: 'en', fra: 'fr', fre: 'fr', french: 'fr',
+    deu: 'de', ger: 'de', german: 'de', spa: 'es', spanish: 'es',
+    ita: 'it', italian: 'it', por: 'pt', portuguese: 'pt',
+    nld: 'nl', dut: 'nl', dan: 'da', nor: 'no', swe: 'sv',
+    fin: 'fi', pol: 'pl', ron: 'ro', rum: 'ro' };
+  if (['und', 'unknown', 'undefined', 'null'].includes(s)) return '';
   return aliases[s] || s;
 }
 
@@ -41,6 +44,7 @@ export function matchAudioTrack(plexStreams, selectedStream, avTracks) {
     // Disqualify positively identified codec mismatches: selecting the
     // ordinal anyway can switch from AC3 back to TrueHD.
     if (selectedCodec && avCodec && selectedCodec !== avCodec) return null;
+    if (selectedLang && avLang && selectedLang !== avLang) return null;
     let score = 0;
     if (selectedCodec && avCodec) score += 100;
     if (selectedLang && avLang) score += selectedLang === avLang ? 30 : -25;
