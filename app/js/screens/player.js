@@ -236,6 +236,12 @@ export function PlayerScreen(initial, { offset = null } = {}) {
       let url;
       if (playbackMode === 'direct') {
         base = 0;
+        // Stop the previous HLS job before reconnecting the original source.
+        // Closing AVPlay first prevents stale buffered HLS requests.
+        if (transcodes.active) {
+          player.close();
+          await transcodes.close();
+        }
         url = server.url(part.key);
       } else {
         base = atMs;
@@ -388,6 +394,13 @@ export function PlayerScreen(initial, { offset = null } = {}) {
 
   function failed(msg) {
     if (!alive) return;
+    if (switching) {
+      // A playback change is already in progress. Let its own error handler
+      // handle the failure instead of starting a competing AVPlay open().
+      warn('playback transition error', msg);
+      showNotice('Playback change failed: ' + msg);
+      return;
+    }
     if (mode === 'direct' && !triedFallback && media) {
       // The file looked direct-playable but the TV choked: let Plex convert it.
       warn('direct play failed (' + msg + '), falling back to HLS');
@@ -536,13 +549,10 @@ export function PlayerScreen(initial, { offset = null } = {}) {
             if (col === 0) {
               const verified = await selectDirectAudio();
               if (!verified) {
-                // Switching in place failed: reopen the original file using
-                // Plex's saved stream selection, preserving the playhead.
-                warn('reopening direct play to apply selected audio track');
-                await open(position);
-                if (!lastAudioVerified) {
-                  showNotice('Audio switch could not be verified by the TV. The saved Plex track was reapplied.');
-                }
+                // Do not reopen AVPlay while the TV is playing: on Tizen 6 this
+                // may cause a native player crash or a second Plex session.
+                // The track remains saved on Plex for the next playback.
+                showNotice('Audio preference saved. TV could not switch live; restart the movie to apply it.');
               }
             } else {
               await applyTracks();
