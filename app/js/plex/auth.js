@@ -91,8 +91,10 @@ export async function connect(resource, { localOnly = false, ignoreOverride = fa
       log('connected using manual LAN address', hit.uri);
       return hit.uri;
     } catch (e) {
-      // A chosen manual address must not silently fall back to a remote connection.
-      throw new Error('Manual LAN address unavailable: ' + e.message);
+      // Test-and-save must fail explicitly; a previously saved override may
+      // become stale, so allow normal Plex discovery to recover in that case.
+      if (manualUrl) throw new Error('Manual LAN address unavailable: ' + e.message);
+      warn('saved manual LAN address unavailable; trying discovered addresses', e.message);
     }
   }
   for (const tier of candidateUris(resource, { localOnly })) {
