@@ -82,9 +82,9 @@ function firstSuccess(promises) {
   });
 }
 
-export async function connect(resource, { localOnly = false, ignoreOverride = false } = {}) {
+export async function connect(resource, { localOnly = false, ignoreOverride = false, manualUrl = '' } = {}) {
   const token = resource.accessToken;
-  const override = !ignoreOverride && getLanOverride(resource.clientIdentifier);
+  const override = manualUrl || (!ignoreOverride && getLanOverride(resource.clientIdentifier));
   if (override) {
     try {
       const hit = await probe(override, token, 4500, resource.clientIdentifier);
