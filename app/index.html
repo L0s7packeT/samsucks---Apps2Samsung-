@@ -10,6 +10,31 @@
 <body>
 <div id="app"></div>
 <div id="splash"><img src="img/splash.png" alt=""></div>
-<script type="module" src="js/main.js"></script>
+<script>
+(function () {
+  var started = false;
+  function showError(message) {
+    if (started) return;
+    started = true;
+    var splash = document.getElementById('splash');
+    if (splash) splash.style.display = 'none';
+    var el = document.createElement('div');
+    el.style.cssText = 'position:fixed;z-index:99999;inset:0;background:#10141c;color:white;padding:100px 120px;font:32px Arial,sans-serif;white-space:pre-wrap;';
+    el.textContent = 'SamSUCKS startup error\n\n' + message + '\n\nPlease report this message.';
+    document.body.appendChild(el);
+  }
+  window.__samsucksReady = function () {
+    started = true;
+  };
+  window.addEventListener('error', function (event) {
+    showError((event.message || 'Script failed') + (event.filename ? '\n' + event.filename + ':' + event.lineno : ''));
+  });
+  window.addEventListener('unhandledrejection', function (event) {
+    showError(String(event.reason && (event.reason.stack || event.reason.message) || event.reason));
+  });
+  setTimeout(function () { showError('Startup timed out after 12 seconds'); }, 12000);
+})();
+</script>
+<script src="js/bundle.js"></script>
 </body>
 </html>
