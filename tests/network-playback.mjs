@@ -11,16 +11,16 @@ assert.equal(privateIPv4('192.168.1.10'), true);
 assert.equal(privateIPv4('172.16.0.1'), true);
 assert.equal(privateIPv4('172.31.255.255'), true);
 assert.equal(privateIPv4('192.168.1.1'), true);
-assert.equal(privateIPv4('188.228.98.15'), false);
+assert.equal(privateIPv4('203.0.113.10'), false);
 assert.equal(privateIPv4('172.32.1.1'), false);
 assert.equal(privateIPv4('192.168.999.1'), false);
 assert.equal(normalizeLanAddress('192.168.1.10'), 'http://192.168.1.10:32400');
 assert.equal(normalizeLanAddress('http://192.168.1.10:32401'), 'http://192.168.1.10:32401');
-assert.throws(() => normalizeLanAddress('188.228.98.15'), /private LAN/);
+assert.throws(() => normalizeLanAddress('203.0.113.10'), /private LAN/);
 assert.throws(() => normalizeLanAddress('http://192.168.1.10:32400/path'), /local host/);
 assert.throws(() => normalizeLanAddress('http://user:pass@192.168.1.10'), /local host/);
 assert.equal(isLocalUri('http://192.168.1.10:32400'), true);
-assert.equal(isLocalUri('http://188.228.98.15:32400'), false);
+assert.equal(isLocalUri('http://203.0.113.10:32400'), false);
 assert.match(connectionLabel('http://192.168.1.10:32400'), /^Local/);
 
 const resource = {
@@ -78,7 +78,7 @@ assert.equal(pgs.searchParams.get('subtitles'), 'burn');
 assert.equal(pgs.searchParams.get('directStreamAudio'), '1');
 
 
-const remote = new Server({ uri: 'http://188.228.98.15:32400', token: 'test', name: 'Test', id: 'test' });
+const remote = new Server({ uri: 'http://203.0.113.10:32400', token: 'test', name: 'Test', id: 'test' });
 const remoteUrl = new URL(remote.transcodeUrl({ ratingKey: 25 }, { session: 'testing' }));
 assert.equal(remoteUrl.searchParams.get('location'), 'wan');
 
