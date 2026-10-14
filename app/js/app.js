@@ -19,17 +19,33 @@ function goLogin() {
 }
 
 async function verify() {
-  // Home already painted from cache; make sure the saved connection still works.
+  // Try the LAN again on every launch, even when a saved public address works.
+  // Plex may have been reached remotely during a previous network outage.
+  const saved = session.server;
   try {
-    await session.server.get('/identity');
+    await reconnect({ localOnly: true });
+    if (session.server !== saved && session.server.uri !== saved.uri) {
+      log('switched Plex connection to LAN');
+      if (router.top() && router.top().name === 'home') goHome();
+    }
+    return;
+  } catch (e) {
+    warn('LAN refresh unavailable', e.message);
+  }
+
+  // Keep a working remote connection when local discovery is unavailable.
+  if (session.server !== saved) return;
+  try {
+    await saved.get('/identity');
   } catch (e) {
     if (e.status === 401) { signOut(); goLogin(); return; }
     warn('saved server unreachable, re-resolving', e.message);
     try {
       await reconnect();
-      goHome();
+      if (router.top() && router.top().name === 'home') goHome();
     } catch (err) {
       if (err.status === 401) { signOut(); goLogin(); }
+      else warn('server reconnect failed', err.message);
     }
   }
 }
