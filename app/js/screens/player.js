@@ -3,6 +3,7 @@
 // only the audio/container converted. Seeking previews locally and only
 // commits once the user stops pressing, because AVPlay seeks are slow.
 import { DEV } from '../config.js';
+import * as store from '../util/store.js';
 import { h, setText, setTransform, toggleClass } from '../util/dom.js';
 import { createPlayer } from '../platform/player.js';
 import { setScreenSaver, supports4K } from '../platform/tizen.js';
@@ -74,7 +75,7 @@ export function PlayerScreen(initial, { offset = null } = {}) {
   const tInfo = h('span', 'osd-info', times);
   const tLeft = h('span', 'osd-left', times);
   const hintEl = h('div', 'osd-hint', osdBottom);
-  hintEl.innerHTML = '▼ Audio &amp; subtitles';
+  hintEl.innerHTML = '▼ Audio, subtitles &amp; quality';
 
   const panel = h('div', 'tracks hidden', el);
   const upnext = h('div', 'upnext hidden', el);
@@ -85,6 +86,20 @@ export function PlayerScreen(initial, { offset = null } = {}) {
   let part = null;
   let mode = 'direct';
   let triedFallback = false;
+  const QUALITY = [
+    { label: 'Original', kbps: 0 },
+    { label: '40 Mbps', kbps: 40000 },
+    { label: '25 Mbps', kbps: 25000 },
+    { label: '20 Mbps', kbps: 20000 },
+    { label: '15 Mbps', kbps: 15000 },
+    { label: '10 Mbps', kbps: 10000 },
+    { label: '8 Mbps', kbps: 8000 },
+    { label: '5 Mbps', kbps: 5000 },
+    { label: '4 Mbps', kbps: 4000 },
+    { label: '2 Mbps', kbps: 2000 },
+  ];
+  let qualityKbps = store.get('qualityKbps', 0);
+  if (!QUALITY.some(q => q.kbps === qualityKbps)) qualityKbps = 0;
   let base = 0;             // HLS restarts at an offset; AVPlay time is relative to it
   let position = offset || 0;
   let duration = initial.duration || 0;
@@ -191,7 +206,7 @@ export function PlayerScreen(initial, { offset = null } = {}) {
     const directOk = DIRECT.container[media.container] && DIRECT.video[media.videoCodec] &&
       (!audioStream || DIRECT.audio[audioStream.codec]);
     const subsOk = !subStream || isEmbeddedText(subStream) || isSidecarText(subStream);
-    return directOk && subsOk ? 'direct' : 'hls';
+    return !qualityKbps && directOk && subsOk ? 'direct' : 'hls';
   }
 
   async function open(atMs) {
@@ -209,7 +224,8 @@ export function PlayerScreen(initial, { offset = null } = {}) {
       const burn = subStream && !isSidecarText(subStream);
       url = server.transcodeUrl(item, {
         session: playSession, offsetMs: atMs,
-        audioStreamID: audioStream && audioStream.id,
+        maxBitrate: qualityKbps || 40000,
+        forceVideoTranscode: qualityKbps > 0,
         subtitleStreamID: burn ? subStream.id : undefined,
       });
       // PMS 1.42+ rejects start.m3u8 unless a decision was made for the session first.
@@ -379,8 +395,8 @@ export function PlayerScreen(initial, { offset = null } = {}) {
   // --- Audio / subtitle picker ------------------------------------------
 
   let panelCol = 0;
-  let panelIndex = [0, 0];
-  let panelLists = [[], []];
+  let panelIndex = [0, 0, 0];
+  let panelLists = [[], [], []];
 
   function openPanel() {
     const audios = streamsOf(part, 2);
@@ -388,6 +404,7 @@ export function PlayerScreen(initial, { offset = null } = {}) {
     panelLists = [
       audios.map(s => ({ label: s.displayTitle || s.language || 'Track', stream: s, on: s === audioStream })),
       [{ label: 'Off', stream: null, on: !subStream }].concat(texts.map(s => ({ label: subtitleLabel(s), stream: s, on: s === subStream }))),
+      QUALITY.map(q => ({ label: q.label, kbps: q.kbps, on: q.kbps === qualityKbps })),
     ];
     panelIndex = panelLists.map(l => Math.max(0, l.findIndex(x => x.on)));
     panelCol = 0;
@@ -398,46 +415,76 @@ export function PlayerScreen(initial, { offset = null } = {}) {
 
   function renderPanel() {
     panel.innerHTML = '';
-    ['Audio', 'Subtitles'].forEach((name, c) => {
+    ['Audio', 'Subtitles', 'Quality'].forEach((name, c) => {
       const col = h('div', 'tracks-col', panel);
       const head = h('div', 'tracks-head', col);
-      head.innerHTML = c === 0 ? icons.audio : icons.subtitles;
+      head.innerHTML = c === 0 ? icons.audio : c === 1 ? icons.subtitles : '';
       h('span', '', head).textContent = name;
+      const list = h('div', 'tracks-list', col);
       panelLists[c].forEach((opt, i) => {
-        const row = h('div', 'tracks-opt', col);
+        const row = h('div', 'tracks-opt', list);
         row.textContent = opt.label;
         toggleClass(row, 'on', opt.on);
         toggleClass(row, 'focus', c === panelCol && i === panelIndex[c]);
+        if (c === panelCol && i === panelIndex[c]) {
+          setTimeout(() => { if (row.scrollIntoView) row.scrollIntoView({ block: 'nearest' }); }, 0);
+        }
       });
     });
   }
 
   async function choose(col, opt) {
-    const server = session.server;
+    if (col === 2) {
+      if (qualityKbps === opt.kbps) { panel.classList.add('hidden'); showOsd(); return; }
+      const previous = qualityKbps;
+      qualityKbps = opt.kbps;
+      mode = decideMode();
+      triedFallback = false;
+      panel.classList.add('hidden');
+      try {
+        await open(position);
+        store.set('qualityKbps', qualityKbps);
+      } catch (e) {
+        qualityKbps = previous;
+        failed(e.message || String(e));
+      }
+      return;
+    }
+    const oldAudio = audioStream;
+    const oldSub = subStream;
     if (col === 0) audioStream = opt.stream;
     else subStream = opt.stream;
-    server.selectStreams(part.id, {
-      audioStreamID: audioStream ? audioStream.id : undefined,
-      subtitleStreamID: subStream ? subStream.id : 0,
-    });
     panel.classList.add('hidden');
-    const wanted = decideMode();
-    if (wanted === 'direct' && mode === 'direct') {
-      applyTracks();
-      syncSidecar();
-    } else if (mode === 'hls' && wanted === 'hls' && col === 1 && isSidecarText(subStream)) {
-      syncSidecar();
-    } else {
-      mode = wanted;
-      triedFallback = false;
-      await open(position).catch(e => failed(e.message));
+    try {
+      await session.server.selectStreams(part.id, {
+        audioStreamID: audioStream ? audioStream.id : undefined,
+        subtitleStreamID: subStream ? subStream.id : 0,
+      });
+      const wanted = decideMode();
+      if (wanted === 'direct' && mode === 'direct') {
+        applyTracks();
+        syncSidecar();
+      } else if (mode === 'hls' && wanted === 'hls' && col === 1 && isSidecarText(subStream)) {
+        syncSidecar();
+      } else {
+        mode = wanted;
+        triedFallback = false;
+        await open(position);
+      }
+      showOsd();
+    } catch (e) {
+      audioStream = oldAudio;
+      subStream = oldSub;
+      failed(e.message || String(e));
     }
   }
 
   function panelKey(action) {
-    if (action === 'back' || action === 'up' && panelIndex[panelCol] === 0) { panel.classList.add('hidden'); return true; }
-    if (action === 'left' || action === 'right') panelCol = action === 'left' ? 0 : 1;
-    if (action === 'up') panelIndex[panelCol]--;
+    if (action === 'back') { panel.classList.add('hidden'); showOsd(); return true; }
+    if (action === 'left' || action === 'right') {
+      panelCol = Math.max(0, Math.min(2, panelCol + (action === 'right' ? 1 : -1)));
+    }
+    if (action === 'up') panelIndex[panelCol] = Math.max(0, panelIndex[panelCol] - 1);
     if (action === 'down') panelIndex[panelCol] = Math.min(panelLists[panelCol].length - 1, panelIndex[panelCol] + 1);
     if (action === 'enter') {
       const opt = panelLists[panelCol][panelIndex[panelCol]];
