@@ -2,7 +2,8 @@
 // goes straight to the home screen.
 import * as store from './util/store.js';
 import { Server } from './plex/server.js';
-import { getServers, connect } from './plex/auth.js';
+import { getServers, connect, candidateUris } from './plex/auth.js';
+import { isLocalUri } from './plex/network.js';
 import { log } from './util/log.js';
 
 export const session = {
@@ -22,8 +23,10 @@ export function signIn(token, user) {
 }
 
 export function useServer(resource, uri) {
-  session.server = new Server({ uri, token: resource.accessToken, name: resource.name, id: resource.clientIdentifier });
-  store.set('server', { uri, token: resource.accessToken, name: resource.name, id: resource.clientIdentifier });
+  const local = isLocalUri(uri) || candidateUris(resource, { localOnly: true }).some(tier => tier.indexOf(uri) !== -1);
+  const data = { uri, token: resource.accessToken, name: resource.name, id: resource.clientIdentifier, local };
+  session.server = new Server(data);
+  store.set('server', data);
 }
 
 export function signOut() {
@@ -37,12 +40,15 @@ export function signOut() {
 }
 
 // The saved URI can go stale (DHCP, remote vs. home). Re-resolve it from plex.tv.
-export async function reconnect() {
+export async function reconnect({ localOnly = false, ignoreOverride = false } = {}) {
+  const previous = session.server;
   const servers = await getServers(session.token);
   const current = session.server && servers.find(s => s.clientIdentifier === session.server.id);
   const resource = current || servers[0];
   if (!resource) throw new Error('No Plex servers on this account');
-  const uri = await connect(resource);
+  const uri = await connect(resource, { localOnly, ignoreOverride });
+  // Do not override a server manually selected while discovery was running.
+  if (session.server !== previous) return session.server;
   useServer(resource, uri);
   log('reconnected', resource.name, uri);
   return session.server;
