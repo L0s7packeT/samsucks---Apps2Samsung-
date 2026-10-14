@@ -19,6 +19,9 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Install build tool
+        run: npm install --no-save --ignore-scripts esbuild@0.25.12
+
       - name: Build unsigned Tizen package
         run: bash scripts/build-wgt.sh
 
@@ -32,12 +35,14 @@ jobs:
           with zipfile.ZipFile(package) as archive:
               assert archive.testzip() is None, 'Corrupt WGT archive'
               entries = set(archive.namelist())
-              assert {'config.xml', 'index.html', 'icon.png', 'js/main.js', 'js/config.js'} <= entries
+              assert {'config.xml', 'index.html', 'icon.png', 'js/bundle.js'} <= entries
               assert not any(name.startswith('js/dev/') for name in entries)
               config = ET.fromstring(archive.read('config.xml'))
               app = config.find('{http://tizen.org/ns/widgets}application')
               assert app is not None and app.attrib['required_version'] == '6.0'
-              assert b'modulepreload' in archive.read('index.html')
+              html = archive.read('index.html')
+              assert b'js/bundle.js' in html and b'type="module"' not in html
+              assert len(archive.read('js/bundle.js')) > 10000
           print(f'Validated {package}: {package.stat().st_size} bytes')
           PY
 
