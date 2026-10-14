@@ -242,7 +242,7 @@ export function PlayerScreen(initial, { offset = null } = {}) {
         // Burn in only subtitles that cannot be rendered as a sidecar.
         const burn = subStream && !isSidecarText(subStream);
         url = server.transcodeUrl(item, {
-          session: nextTranscode, offsetMs: atMs,
+          session: nextTranscode, clientSession: playSession, offsetMs: atMs,
           maxBitrate: qualityKbps || 40000,
           forceVideoTranscode: qualityKbps > 0,
           subtitleStreamID: burn ? subStream.id : undefined,
