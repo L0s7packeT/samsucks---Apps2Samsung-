@@ -72,5 +72,5 @@ jobs:
             "build/samsucks-tizen6-unsigned.wgt" \
             --target "${GITHUB_SHA}" \
             --title "SamSUCKS Tizen 6.0 - Build ${GITHUB_RUN_NUMBER}" \
-            --notes "Tizen 6.0 WGT for Apps2Samsung. v0.1.5: Adds a Playback Options screen to choose audio, subtitles and quality before starting or resuming a movie/episode. Corrects PGS/image subtitle requests to force video transcoding even at Original quality, without applying a hidden bitrate limit. Changes passed automated tests; native TV playback must still be verified." \
+            --notes "Tizen 6.0 WGT for Apps2Samsung. v0.1.6: Playback Options chooses audio, subtitles and video bitrate before playback. Fixed Play / episode / remote shortcuts so selections are applied consistently. PGS/image subtitles force compatible video transcoding at Original quality without an unintended bitrate cap. Changes passed automated tests; native TV playback must still be verified." \
             --latest

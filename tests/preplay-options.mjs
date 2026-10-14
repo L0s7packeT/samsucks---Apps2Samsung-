@@ -37,4 +37,14 @@ assert.equal(initial.audio.id, 101);
 assert.equal(initial.subtitle, null);
 assert.equal(resolvePlayback(part, { audioStreamID: 102, subtitleStreamID: 202 }).audio.id, 102);
 
+// Ensure every detail-screen playback entry point goes through the same
+// preplay-aware wrapper, not just the Resume and From Start buttons.
+const { readFileSync } = await import('node:fs');
+const detailSource = readFileSync(new URL('../app/js/screens/detail.js', import.meta.url), 'utf8');
+assert.equal((detailSource.match(/playItem\s*\(/g) || []).length, 1,
+  'All detail-screen play actions must use the preplay-aware wrapper');
+assert.match(detailSource, /Play'\s*,\s*\(\)\s*=>\s*playSelected\(t,\s*0\)/);
+assert.match(detailSource, /onSelect:\s*ep\s*=>\s*playSelected\(ep,/);
+assert.match(detailSource, /if\s*\(t\)\s*playSelected\(t,\s*t\.viewOffset/);
+
 console.log('Preplay track choices and forced subtitle burn decisions passed');

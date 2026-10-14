@@ -106,7 +106,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
         add(icons.play, prefix + 'Resume ' + clock(t.viewOffset), () => playSelected(t, t.viewOffset));
         add(icons.restart, 'From the start', () => playSelected(t, 0));
       } else {
-        add(icons.play, isShowLike() ? 'Play ' + prefix : 'Play', () => playItem(t, { offset: 0 }));
+        add(icons.play, isShowLike() ? 'Play ' + prefix : 'Play', () => playSelected(t, 0));
       }
     }
     if (t) add(icons.gear, preplay && String(preplay.ratingKey) === String(t.ratingKey) ?
@@ -143,7 +143,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
     if (!episodes) {
       const row = new Row({
         kind: 'episode', caption: true, items: kids,
-        onSelect: ep => playItem(ep, { offset: ep.viewOffset || 0 }),
+        onSelect: ep => playSelected(ep, ep.viewOffset || 0),
       });
       episodesWrap.appendChild(row.el);
       episodes = { row, items: kids };
@@ -231,7 +231,7 @@ export function DetailScreen(initial, { autoplay = false } = {}) {
       if (action === 'down') { moveZone(1); return true; }
       if (action === 'play' || action === 'playpause') {
         const t = zone === 'episodes' ? episodes.row.current() : target();
-        if (t) playItem(t, { offset: t.viewOffset || 0 });
+        if (t) playSelected(t, t.viewOffset || 0);
         return true;
       }
       if (zone === 'buttons') {
