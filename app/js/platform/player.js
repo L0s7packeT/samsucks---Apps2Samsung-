@@ -11,6 +11,7 @@ function avplayBackend(container, listener) {
   container.appendChild(obj);
   let opened = false;
   let generation = 0;
+  let pendingPrepareFail = null;
 
   const api = {
     open(url, { uhd = false } = {}) {
@@ -32,7 +33,13 @@ function avplayBackend(container, listener) {
         onbufferingcomplete: () => { if (valid()) listener.onBuffering(false); },
         oncurrentplaytime: ms => { if (valid()) listener.onTime(ms); },
         onstreamcompleted: () => { if (valid()) listener.onEnd(); },
-        onerror: e => { if (valid()) listener.onError(String(e)); },
+        onerror: e => {
+          if (!valid()) return;
+          // Handle errors during prepare through the same Promise rather
+          // than starting another playback transition concurrently.
+          if (pendingPrepareFail) pendingPrepareFail(new Error(String(e)));
+          else listener.onError(String(e));
+        },
         onevent: () => {},
         onsubtitlechange: (duration, text) => {
           if (valid()) listener.onSubtitle(text, Number(duration));
@@ -41,7 +48,30 @@ function avplayBackend(container, listener) {
       });
     },
     prepare() {
-      return new Promise((resolve, reject) => av.prepareAsync(resolve, e => reject(new Error(String(e && e.name || e)))));
+      const currentGeneration = generation;
+      return new Promise((resolve, reject) => {
+        let completed = false;
+        const finish = err => {
+          if (completed) return;
+          completed = true;
+          clearTimeout(timer);
+          if (pendingPrepareFail === fail) pendingPrepareFail = null;
+          if (currentGeneration !== generation) {
+            reject(new Error('Playback preparation interrupted'));
+            return;
+          }
+          if (err) reject(err); else resolve();
+        };
+        const fail = err => finish(err);
+        // A stuck native prepare must not leave the user on a spinner
+        // indefinitely; image subtitle burn-in may legitimately take time.
+        const timer = setTimeout(() => fail(new Error('Playback preparation timed out after 60 seconds')), 60000);
+        pendingPrepareFail = fail;
+        try {
+          av.prepareAsync(() => finish(null),
+            e => fail(new Error(String(e && e.name || e))));
+        } catch (e) { fail(e); }
+      });
     },
     play() { av.play(); },
     pause() { av.pause(); },
@@ -85,6 +115,7 @@ function avplayBackend(container, listener) {
     suspend() { try { av.suspend(); } catch (e) {} },
     restore() { try { av.restore(); } catch (e) {} },
     close() {
+      if (pendingPrepareFail) pendingPrepareFail(new Error('Playback preparation interrupted'));
       generation++; // Immediately invalidate callbacks from the stopped stream.
       if (!opened) return;
       opened = false;

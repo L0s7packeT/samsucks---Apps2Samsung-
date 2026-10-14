@@ -34,27 +34,37 @@ export function PlaybackOptionsScreen(item, { onApply } = {}) {
   let busy = false;
   let alive = true;
 
+  let optionElements = [[], [], []];
+  // Build the columns once. Recreating every subtitle/quality row on each
+  // remote key press caused unnecessary layout work on Chromium 76.
   function render() {
     columns.innerHTML = '';
+    optionElements = [[], [], []];
     const labels = ['Audio', 'Subtitles', 'Quality'];
-    const footer = ['Save these options for this title, then use Resume or From the start.'];
     labels.forEach((label, c) => {
       const column = h('div', 'preplay-column', columns);
-      const title = h('div', 'preplay-column-title', column);
-      setText(title, label);
+      setText(h('div', 'preplay-column-title', column), label);
       const list = h('div', 'preplay-list', column);
-      rows[c].forEach((option, i) => {
+      rows[c].forEach(option => {
         const row = h('div', 'preplay-option', list);
         setText(row, option.label);
-        toggleClass(row, 'on', values[c] === i);
-        toggleClass(row, 'focus', area === 'tracks' && c === col && indices[c] === i);
-        if (area === 'tracks' && c === col && indices[c] === i) {
-          setTimeout(() => { if (alive && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' }); }, 0);
-        }
+        optionElements[c].push(row);
       });
     });
+    renderFocus();
+  }
+
+  function renderFocus() {
+    optionElements.forEach((list, c) => list.forEach((row, i) => {
+      toggleClass(row, 'on', values[c] === i);
+      toggleClass(row, 'focus', area === 'tracks' && c === col && indices[c] === i);
+    }));
     toggleClass(applyButton, 'focus', area === 'actions' && actionIndex === 0);
     toggleClass(cancelButton, 'focus', area === 'actions' && actionIndex === 1);
+    if (area === 'tracks') {
+      const row = optionElements[col] && optionElements[col][indices[col]];
+      if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+    }
   }
 
   async function load() {
@@ -144,7 +154,7 @@ export function PlaybackOptionsScreen(item, { onApply } = {}) {
         }
         if (action === 'enter') values[col] = indices[col];
       }
-      render();
+      renderFocus();
       return true;
     },
     destroy() { alive = false; },

@@ -1,3 +1,9 @@
+> 🔴 **WARNING — CHATGPT-MODIFIED FORK; MAY CONTAIN BUGS.** This unofficial Tizen 6.0 build was modified by ChatGPT, is provided as-is, and is not actively maintained. For the original project, see [rfaile313/samsucks](https://github.com/rfaile313/samsucks).
+>
+> **Changes from upstream:** Tizen 6.0/Chromium 76 compatibility; unsigned WGT GitHub Releases for Apps2Samsung; local Plex connection controls; pre-play and in-player audio/subtitle/bitrate selection; PGS burn-in transcoding; playback, stream-session and remote-navigation fixes. **No support or contributions are requested.**
+
+---
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="assets/brand/lockup-horizontal-dark-1920x640.png">

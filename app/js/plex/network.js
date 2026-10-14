@@ -9,7 +9,7 @@ export function privateIPv4(host) {
 
 export function normalizeLanAddress(value) {
   let input = String(value || '').trim();
-  if (!input) throw new Error('Enter a LAN address, for example 10.10.30.70:32400');
+  if (!input) throw new Error('Enter a LAN address, for example 192.168.1.10:32400');
   if (!/^https?:\/\//i.test(input)) input = 'http://' + input;
   let u;
   try { u = new URL(input); } catch (e) { throw new Error('Invalid server address'); }
