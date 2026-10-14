@@ -29,6 +29,7 @@ jobs:
         run: |
           node --experimental-default-type=module tests/network-playback.mjs
           node --experimental-default-type=module tests/audio-playback.mjs
+          node --experimental-default-type=module tests/preplay-options.mjs
 
       - name: Build unsigned Tizen package
         run: bash scripts/build-wgt.sh
@@ -71,5 +72,5 @@ jobs:
             "build/samsucks-tizen6-unsigned.wgt" \
             --target "${GITHUB_SHA}" \
             --title "SamSUCKS Tizen 6.0 - Build ${GITHUB_RUN_NUMBER}" \
-            --notes "Tizen 6.0 WGT for Apps2Samsung. v0.1.4: Recognize Samsung audio MIME codecs (AC3/EAC3/TrueHD); avoid unstable automatic reopening when live track verification fails; suppress stale AVPlay callbacks; stop the previous Plex HLS session before returning to Original Direct Play. Changes passed automated tests; native TV playback and quality transitions still require testing." \
+            --notes "Tizen 6.0 WGT for Apps2Samsung. v0.1.5: Adds a Playback Options screen to choose audio, subtitles and quality before starting or resuming a movie/episode. Corrects PGS/image subtitle requests to force video transcoding even at Original quality, without applying a hidden bitrate limit. Changes passed automated tests; native TV playback must still be verified." \
             --latest
