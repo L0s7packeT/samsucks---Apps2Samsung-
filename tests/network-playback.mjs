@@ -1,0 +1,59 @@
+import assert from 'node:assert/strict';
+
+// Pure checks for the shipping browser bundle (no Plex credentials or TV needed).
+globalThis.window = {};
+const { privateIPv4, normalizeLanAddress, isLocalUri, connectionLabel } =
+  await import('../app/js/plex/network.js');
+const { candidateUris } = await import('../app/js/plex/auth.js');
+const { Server } = await import('../app/js/plex/server.js');
+
+assert.equal(privateIPv4('10.10.30.70'), true);
+assert.equal(privateIPv4('172.16.0.1'), true);
+assert.equal(privateIPv4('172.31.255.255'), true);
+assert.equal(privateIPv4('192.168.1.1'), true);
+assert.equal(privateIPv4('188.228.98.15'), false);
+assert.equal(privateIPv4('172.32.1.1'), false);
+assert.equal(privateIPv4('192.168.999.1'), false);
+assert.equal(normalizeLanAddress('10.10.30.70'), 'http://10.10.30.70:32400');
+assert.equal(normalizeLanAddress('http://192.168.1.10:32401'), 'http://192.168.1.10:32401');
+assert.throws(() => normalizeLanAddress('188.228.98.15'), /private LAN/);
+assert.throws(() => normalizeLanAddress('http://10.10.30.70:32400/path'), /local host/);
+assert.throws(() => normalizeLanAddress('http://user:pass@10.10.30.70'), /local host/);
+assert.equal(isLocalUri('http://10.10.30.70:32400'), true);
+assert.equal(isLocalUri('http://188.228.98.15:32400'), false);
+assert.match(connectionLabel('http://10.10.30.70:32400'), /^Local/);
+
+const resource = {
+  httpsRequired: false,
+  connections: [
+    { uri: 'https://remote.example:32400', local: false, relay: false },
+    { uri: 'https://10-10-30-70.abc.plex.direct:32400', address: '10.10.30.70', port: 32400, local: true, relay: false },
+    { uri: 'https://relay.example', local: false, relay: true },
+  ],
+};
+const tiers = candidateUris(resource);
+assert.deepEqual(tiers[0], ['http://10.10.30.70:32400']);
+assert.deepEqual(tiers[1], ['https://10-10-30-70.abc.plex.direct:32400']);
+assert.deepEqual(tiers[2], ['https://remote.example:32400']);
+assert.equal(candidateUris(resource, { localOnly: true }).length, 2);
+
+const server = new Server({ uri: 'http://10.10.30.70:32400', token: 'test', name: 'Test', id: 'test', local: true });
+const original = new URL(server.transcodeUrl({ ratingKey: 25 }, { session: 'testing' }));
+assert.equal(original.searchParams.get('maxVideoBitrate'), '200000');
+assert.equal(original.searchParams.get('directStream'), '1');
+assert.equal(original.searchParams.get('videoQuality'), '100');
+assert.equal(original.searchParams.get('videoBitrate'), null);
+assert.equal(original.searchParams.get('location'), 'lan');
+
+const limited = new URL(server.transcodeUrl({ ratingKey: 25 }, {
+  session: 'testing', maxBitrate: 10000, forceVideoTranscode: true,
+}));
+assert.equal(limited.searchParams.get('maxVideoBitrate'), '10000');
+assert.equal(limited.searchParams.get('videoBitrate'), '10000');
+assert.equal(limited.searchParams.get('directStream'), '0');
+
+const remote = new Server({ uri: 'http://188.228.98.15:32400', token: 'test', name: 'Test', id: 'test' });
+const remoteUrl = new URL(remote.transcodeUrl({ ratingKey: 25 }, { session: 'testing' }));
+assert.equal(remoteUrl.searchParams.get('location'), 'wan');
+
+console.log('LAN selection, manual URL and transcoding tests passed');
