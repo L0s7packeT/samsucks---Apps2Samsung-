@@ -7,12 +7,16 @@ function details(track) {
 }
 
 function codec(value) {
-  const c = String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (['ac3', 'a52'].includes(c)) return 'ac3';
-  if (['eac3', 'ec3'].includes(c)) return 'eac3';
-  if (['truehd', 'mlp', 'mlpa', 'trhd'].includes(c)) return 'truehd';
-  if (['aac', 'aacl', 'mp4a'].includes(c) || c.startsWith('aac')) return 'aac';
-  return c;
+  // AVPlay reports fourCC values including MIME names such as
+  // "audio/x-ac3" and "audio/x-eac3", not just AC3 and EAC3.
+  const normalized = String(value || '').toLowerCase().trim()
+    .replace(/^audio\/(?:x-)?/, '').replace(/^x-/, '')
+    .replace(/[^a-z0-9]/g, '');
+  if (['ac3', 'a52'].includes(normalized)) return 'ac3';
+  if (['eac3', 'ec3'].includes(normalized)) return 'eac3';
+  if (['truehd', 'dolbytruehd', 'mlp', 'mlpa', 'trhd'].includes(normalized)) return 'truehd';
+  if (['aac', 'aacl', 'mp4a'].includes(normalized) || normalized.startsWith('aac')) return 'aac';
+  return normalized;
 }
 
 function language(value) {
