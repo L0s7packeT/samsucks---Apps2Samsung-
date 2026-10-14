@@ -464,7 +464,7 @@ export function PlayerScreen(initial, { offset = null } = {}) {
       if (wanted === 'direct' && mode === 'direct') {
         applyTracks();
         syncSidecar();
-      } else if (mode === 'hls' && wanted === 'hls' && col === 1 && isSidecarText(subStream)) {
+      } else if (mode === 'hls' && wanted === 'hls' && col === 1 && isSidecarText(subStream) && (!oldSub || isSidecarText(oldSub))) {
         syncSidecar();
       } else {
         mode = wanted;
