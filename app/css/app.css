@@ -450,3 +450,31 @@ html.fast .row-track, html.fast .rows-track, html.fast .grid-track, html.fast .r
   position: absolute; top: 10px; right: 14px; z-index: 100; padding: 4px 12px; border-radius: 8px;
   background: rgba(0, 0, 0, 0.65); color: #9f9; font: 18px monospace; pointer-events: none;
 }
+
+/* ---------- pre-play Audio / Subtitles / Quality ---------- */
+.preplay-title { position: absolute; top: 95px; left: 100px;
+  font: 700 72px/1 var(--display); }
+.preplay-name { position: absolute; top: 181px; left: 100px; right: 100px;
+  font: 600 31px var(--body); color: var(--cream);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.preplay-help { position: absolute; top: 226px; left: 100px; right: 100px;
+  font: 500 22px var(--body); color: var(--dim); }
+.preplay-columns { position: absolute; top: 290px; left: 95px; right: 95px;
+  height: 585px; display: flex; gap: 22px; }
+.preplay-column { flex: 1 1 0; min-width: 0; height: 100%;
+  background: rgba(15,18,25,.74); border-radius: 22px; padding: 25px 22px;
+  display: flex; flex-direction: column; }
+.preplay-column-title { flex: 0 0 auto; font: 650 30px var(--body);
+  color: var(--cream); padding: 0 10px 21px; }
+.preplay-list { flex: 1 1 0; min-height: 0; overflow-y: auto;
+  scrollbar-width: thin; }
+.preplay-option { padding: 14px 21px; min-height: 57px; margin-bottom: 6px;
+  font: 500 24px/1.3 var(--body); color: rgba(255,247,230,.78);
+  border-radius: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.preplay-option.on { color: var(--cream); }
+.preplay-option.on::before { content: '✓  '; color: var(--coral); }
+.preplay-option.focus { background: var(--cream); color: var(--bg); }
+.preplay-option.focus.on::before { color: var(--bg); }
+.preplay-actions { position: absolute; top: 912px; left: 95px; }
+.preplay-status { position: absolute; top: 1010px; left: 100px; right: 100px;
+  font: 500 20px var(--body); color: var(--dim); }
