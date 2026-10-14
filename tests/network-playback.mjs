@@ -62,6 +62,22 @@ assert.equal(split.searchParams.get('session'), 'transcode-2');
 assert.equal(split.searchParams.get('X-Plex-Session-Identifier'), 'playback-1');
 assert.equal(split.searchParams.get('directStreamAudio'), '1');
 
+// Original + PGS must encode the video to burn subtitles, but must NOT
+// inherit the bitrate limit reserved for 10/20/40 Mbps quality presets.
+const pgs = new URL(server.transcodeUrl({ ratingKey: 25 }, {
+  session: 'pgs-original', forceVideoTranscode: true, limitBitrate: false,
+  audioStreamID: 12, subtitleStreamID: 35, burnSubtitles: true,
+}));
+assert.equal(pgs.searchParams.get('directStream'), '0');
+assert.equal(pgs.searchParams.get('videoQuality'), '100');
+assert.equal(pgs.searchParams.get('maxVideoBitrate'), '200000');
+assert.equal(pgs.searchParams.get('videoBitrate'), null);
+assert.equal(pgs.searchParams.get('audioStreamID'), '12');
+assert.equal(pgs.searchParams.get('subtitleStreamID'), '35');
+assert.equal(pgs.searchParams.get('subtitles'), 'burn');
+assert.equal(pgs.searchParams.get('directStreamAudio'), '1');
+
+
 const remote = new Server({ uri: 'http://188.228.98.15:32400', token: 'test', name: 'Test', id: 'test' });
 const remoteUrl = new URL(remote.transcodeUrl({ ratingKey: 25 }, { session: 'testing' }));
 assert.equal(remoteUrl.searchParams.get('location'), 'wan');
