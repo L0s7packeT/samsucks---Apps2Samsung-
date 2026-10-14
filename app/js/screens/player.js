@@ -16,7 +16,7 @@ import { request } from '../plex/client.js';
 import { parseSubtitles, CueTrack } from '../player/subtitles.js';
 import { matchAudioTrack } from '../player/audio-tracks.js';
 import { TranscodeSessions } from '../player/transcode-sessions.js';
-import { QUALITY, validQuality, resolvePlayback, requiresSubtitleBurnIn } from '../player/playback-options.js';
+import { QUALITY, validQuality, selectedPlayback, resolvePlayback, requiresSubtitleBurnIn } from '../player/playback-options.js';
 
 // What a 2022 Samsung (Tizen 6.5) decodes natively. No DTS on 2018+ models.
 const DIRECT = {
@@ -114,6 +114,7 @@ export function PlayerScreen(initial, { offset = null, preplay = null } = {}) {
   let cueFor = null;
   let noticeTimer = 0;
   let switching = false;
+  let opening = false;
   let lastAudioVerified = true;
   const playSession = uuid();
   const transcodes = new TranscodeSessions(id => session.server.stopTranscode(id));
@@ -214,6 +215,10 @@ export function PlayerScreen(initial, { offset = null, preplay = null } = {}) {
   }
 
   async function open(atMs) {
+    // A second open while AVPlay is preparing an HLS manifest can crash
+    // Samsung's native player. Do not let remote keys overlap transitions.
+    if (opening) throw new Error('Playback is still preparing');
+    opening = true;
     const server = session.server;
     const t0 = Date.now();
     const playbackMode = mode;
@@ -233,6 +238,12 @@ export function PlayerScreen(initial, { offset = null, preplay = null } = {}) {
         url = server.url(part.key);
       } else {
         base = atMs;
+        // Release the old HLS job before starting the next one; overlapping
+        // 4K subtitle burns can overload Plex and AVPlay.
+        if (transcodes.active) {
+          player.close();
+          await transcodes.close();
+        }
         // Burn in only subtitles that cannot be rendered as a sidecar.
         const burn = requiresSubtitleBurnIn(subStream);
         // PGS / image subtitles must always burn into the video, even at
@@ -259,7 +270,10 @@ export function PlayerScreen(initial, { offset = null, preplay = null } = {}) {
       }
       log('play', playbackMode, item.title, media.container + '/' + media.videoCodec +
         '/' + (audioStream && audioStream.codec), 'at', clock(atMs));
-      player.open(url, { uhd: media.videoResolution === '4k' && supports4K() });
+      // Source may be 4K but Plex often sends 1080p HLS. Let AVPlay detect
+      // the HLS output rather than forcing the source resolution.
+      player.open(url, { uhd: playbackMode === 'direct' &&
+        media.videoResolution === '4k' && supports4K() });
       await player.prepare();
       if (!alive) {
         if (nextTranscode) transcodes.discard(nextTranscode);
@@ -292,6 +306,8 @@ export function PlayerScreen(initial, { offset = null, preplay = null } = {}) {
         .catch(err => warn('failed transcode cleanup', err.message));
       toggleClass(spinner, 'on', false);
       throw e;
+    } finally {
+      opening = false;
     }
   }
 
@@ -371,12 +387,16 @@ export function PlayerScreen(initial, { offset = null, preplay = null } = {}) {
       part = media && media.Part && media.Part[0];
       if (!part) throw new Error('No playable media');
       if (preplay && String(preplay.ratingKey) === String(item.ratingKey)) {
-        // Apply on the server before the first playback decision, never after
-        // AVPlay starts. The menu already saves this; repeat for reliability.
-        await session.server.selectStreams(part.id, {
-          audioStreamID: preplay.audioStreamID == null ? undefined : preplay.audioStreamID,
-          subtitleStreamID: preplay.subtitleStreamID,
-        });
+        // The options screen has already saved the selection. Skip a
+        // redundant server write if freshly loaded metadata confirms it.
+        const selected = selectedPlayback(part, qualityKbps);
+        if (String(selected.audioStreamID) !== String(preplay.audioStreamID) ||
+            String(selected.subtitleStreamID) !== String(preplay.subtitleStreamID)) {
+          await session.server.selectStreams(part.id, {
+            audioStreamID: preplay.audioStreamID == null ? undefined : preplay.audioStreamID,
+            subtitleStreamID: preplay.subtitleStreamID,
+          });
+        }
       }
       const choice = preplay && String(preplay.ratingKey) === String(item.ratingKey) ? preplay : null;
       const resolved = resolvePlayback(part, choice);
@@ -396,7 +416,7 @@ export function PlayerScreen(initial, { offset = null, preplay = null } = {}) {
 
   function failed(msg) {
     if (!alive) return;
-    if (switching) {
+    if (switching || opening) {
       // A playback change is already in progress. Let its own error handler
       // handle the failure instead of starting a competing AVPlay open().
       warn('playback transition error', msg);
@@ -480,6 +500,7 @@ export function PlayerScreen(initial, { offset = null, preplay = null } = {}) {
   let panelLists = [[], [], []];
 
   function openPanel() {
+    if (!started || opening || switching) return;
     const audios = streamsOf(part, 2);
     const texts = streamsOf(part, 3);
     panelLists = [
@@ -515,7 +536,7 @@ export function PlayerScreen(initial, { offset = null, preplay = null } = {}) {
   }
 
   async function choose(col, opt) {
-    if (switching) return;
+    if (switching || opening) return;
     switching = true;
     panel.classList.add('hidden');
     const wasPaused = paused;
