@@ -1,14 +1,16 @@
 // Plex Media Server API, scoped to the features this client uses.
 import { request, withQuery, identity } from './client.js';
+import { isLocalUri } from './network.js';
 
 const SUPPORTED_HUB_TYPES = { movie: 1, show: 1, episode: 1, season: 1, mixed: 1, clip: 1 };
 
 export class Server {
-  constructor({ uri, token, name, id }) {
+  constructor({ uri, token, name, id, local }) {
     this.uri = uri;
     this.token = token;
     this.name = name;
     this.id = id;
+    this.local = local === true || isLocalUri(uri);
     this.cache = new Map();
   }
 
@@ -102,7 +104,7 @@ export class Server {
 
   // HLS URL for content the TV can't direct play. Video is passed through when
   // possible; only the audio (e.g. DTS) or container gets converted.
-  transcodeUrl(item, { session, offsetMs = 0, mediaIndex = 0, maxBitrate = 40000, resolution = '3840x2160', forceVideoTranscode = false, subtitleStreamID } = {}) {
+  transcodeUrl(item, { session, offsetMs = 0, mediaIndex = 0, maxBitrate = 0, resolution = '3840x2160', forceVideoTranscode = false, subtitleStreamID } = {}) {
     const extra = [
       'add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264,hevc&audioCodec=aac,ac3,eac3)',
       'add-direct-play-profile(type=videoProfile&container=mp4,mkv&videoCodec=h264,hevc&audioCodec=aac,ac3,eac3)',
@@ -113,10 +115,13 @@ export class Server {
       protocol: 'hls', fastSeek: 1,
       directPlay: 0, directStream: forceVideoTranscode ? 0 : 1, directStreamAudio: 1,
       offset: Math.floor(offsetMs / 1000),
-      videoQuality: 99, videoResolution: resolution, maxVideoBitrate: maxBitrate,
+      videoQuality: forceVideoTranscode ? 99 : 100, videoResolution: resolution,
+      // Original quality: do not constrain the source bitrate in the HLS fallback.
+      // Use a generous bound for Plex's API instead of its previous 40 Mbps cap.
+      maxVideoBitrate: forceVideoTranscode ? maxBitrate : 200000,
       videoBitrate: forceVideoTranscode ? maxBitrate : undefined,
       subtitles: subtitleStreamID ? 'burn' : 'none', subtitleSize: 100,
-      audioBoost: 100, location: 'lan', copyts: 1,
+      audioBoost: 100, location: this.local ? 'lan' : 'wan', copyts: 1,
       session, 'X-Plex-Session-Identifier': session,
       'X-Plex-Client-Profile-Extra': extra,
       'X-Plex-Token': this.token,
