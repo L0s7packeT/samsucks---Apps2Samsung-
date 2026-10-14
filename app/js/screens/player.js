@@ -16,6 +16,7 @@ import { request } from '../plex/client.js';
 import { parseSubtitles, CueTrack } from '../player/subtitles.js';
 import { matchAudioTrack } from '../player/audio-tracks.js';
 import { TranscodeSessions } from '../player/transcode-sessions.js';
+import { QUALITY, validQuality, resolvePlayback, requiresSubtitleBurnIn } from '../player/playback-options.js';
 
 // What a 2022 Samsung (Tizen 6.5) decodes natively. No DTS on 2018+ models.
 const DIRECT = {
@@ -55,7 +56,7 @@ function cleanSubtitle(text) {
     .replace(/\\N/g, '\n');
 }
 
-export function PlayerScreen(initial, { offset = null } = {}) {
+export function PlayerScreen(initial, { offset = null, preplay = null } = {}) {
   const el = h('div', 'screen player');
   const stage = h('div', 'player-stage', el);
   const subs = h('div', 'subs', el);
@@ -89,20 +90,7 @@ export function PlayerScreen(initial, { offset = null } = {}) {
   let part = null;
   let mode = 'direct';
   let triedFallback = false;
-  const QUALITY = [
-    { label: 'Original', kbps: 0 },
-    { label: '40 Mbps', kbps: 40000 },
-    { label: '25 Mbps', kbps: 25000 },
-    { label: '20 Mbps', kbps: 20000 },
-    { label: '15 Mbps', kbps: 15000 },
-    { label: '10 Mbps', kbps: 10000 },
-    { label: '8 Mbps', kbps: 8000 },
-    { label: '5 Mbps', kbps: 5000 },
-    { label: '4 Mbps', kbps: 4000 },
-    { label: '2 Mbps', kbps: 2000 },
-  ];
-  let qualityKbps = store.get('qualityKbps', 0);
-  if (!QUALITY.some(q => q.kbps === qualityKbps)) qualityKbps = 0;
+  let qualityKbps = validQuality(preplay ? preplay.qualityKbps : store.get('qualityKbps', 0));
   let base = 0;             // HLS restarts at an offset; AVPlay time is relative to it
   let position = offset || 0;
   let duration = initial.duration || 0;
@@ -246,12 +234,17 @@ export function PlayerScreen(initial, { offset = null } = {}) {
       } else {
         base = atMs;
         // Burn in only subtitles that cannot be rendered as a sidecar.
-        const burn = subStream && !isSidecarText(subStream);
+        const burn = requiresSubtitleBurnIn(subStream);
+        // PGS / image subtitles must always burn into the video, even at
+        // Original quality. A passthrough video cannot have burned subtitles.
         url = server.transcodeUrl(item, {
           session: nextTranscode, clientSession: playSession, offsetMs: atMs,
-          maxBitrate: qualityKbps || 40000,
-          forceVideoTranscode: qualityKbps > 0,
-          subtitleStreamID: burn ? subStream.id : undefined,
+          maxBitrate: qualityKbps,
+          limitBitrate: qualityKbps > 0,
+          forceVideoTranscode: qualityKbps > 0 || burn,
+          audioStreamID: audioStream ? audioStream.id : undefined,
+          subtitleStreamID: subStream ? subStream.id : 0,
+          burnSubtitles: burn,
         });
         // Recent Plex releases require a decision before start.m3u8.
         const decision = await request(url.replace('/start.m3u8', '/decision'));
@@ -377,9 +370,18 @@ export function PlayerScreen(initial, { offset = null } = {}) {
       media = (item.Media || [])[0];
       part = media && media.Part && media.Part[0];
       if (!part) throw new Error('No playable media');
-      const audios = streamsOf(part, 2);
-      audioStream = audios.find(s => s.selected) || audios[0] || null;
-      subStream = streamsOf(part, 3).find(s => s.selected) || null;
+      if (preplay && String(preplay.ratingKey) === String(item.ratingKey)) {
+        // Apply on the server before the first playback decision, never after
+        // AVPlay starts. The menu already saves this; repeat for reliability.
+        await session.server.selectStreams(part.id, {
+          audioStreamID: preplay.audioStreamID == null ? undefined : preplay.audioStreamID,
+          subtitleStreamID: preplay.subtitleStreamID,
+        });
+      }
+      const choice = preplay && String(preplay.ratingKey) === String(item.ratingKey) ? preplay : null;
+      const resolved = resolvePlayback(part, choice);
+      audioStream = resolved.audio;
+      subStream = resolved.subtitle;
       renderTitles();
       mode = decideMode();
       if (offset == null) offset = item.viewOffset || 0;
