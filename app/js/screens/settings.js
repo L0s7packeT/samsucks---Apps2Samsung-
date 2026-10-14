@@ -123,7 +123,7 @@ function LanAddressScreen() {
   const input = h('input', 'lan-input', el);
   input.type = 'text';
   input.value = getLanOverride(session.server.id);
-  input.placeholder = '10.10.30.70:32400';
+  input.placeholder = '192.168.1.10:32400';
   input.setAttribute('autocomplete', 'off');
   const hint = h('p', 'lan-hint', el);
   hint.textContent = 'OK to edit · Down for Save / Clear / Cancel';
