@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   package:
@@ -48,3 +48,14 @@ jobs:
           path: build/samsucks-tizen6-unsigned.wgt
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish downloadable WGT release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "tizen6-build-${GITHUB_RUN_NUMBER}" \
+            "build/samsucks-tizen6-unsigned.wgt" \
+            --target "${GITHUB_SHA}" \
+            --title "SamSUCKS Tizen 6.0 - Build ${GITHUB_RUN_NUMBER}" \
+            --notes "Unsigned Tizen 6.0 WGT package for installation through Apps2Samsung Custom WGT/TPK. TV compatibility and playback remain unverified." \
+            --latest
