@@ -24,7 +24,9 @@ jobs:
         run: npm install --no-save --ignore-scripts esbuild@0.25.12
 
       - name: Check connection and playback logic
-        run: node --experimental-default-type=module tests/network-playback.mjs
+        run: |
+          node --experimental-default-type=module tests/network-playback.mjs
+          node --experimental-default-type=module tests/audio-playback.mjs
 
       - name: Build unsigned Tizen package
         run: bash scripts/build-wgt.sh
@@ -66,5 +68,5 @@ jobs:
             "build/samsucks-tizen6-unsigned.wgt" \
             --target "${GITHUB_SHA}" \
             --title "SamSUCKS Tizen 6.0 - Build ${GITHUB_RUN_NUMBER}" \
-            --notes "Tizen 6.0 WGT for Apps2Samsung Custom WGT/TPK. Improvements: local Plex reconnection, manual LAN IP in Settings, uncapped Original quality, AVPlay audio track selection, and preserved bitrate limits (including 10 Mbps). Runtime behavior still requires testing on the TV." \
+            --notes "Tizen 6.0 WGT for Apps2Samsung Custom WGT/TPK. Fixed live audio-track mapping and verification with same-position recovery, automatic cleanup of abandoned HLS jobs when returning to Original, and compatible audio passthrough requests during video transcoding. Run-time Direct Play and audio behavior must be verified on the TV." \
             --latest
