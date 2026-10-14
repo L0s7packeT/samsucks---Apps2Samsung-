@@ -23,7 +23,7 @@ export function identity() {
     'X-Plex-Version': VERSION,
     'X-Plex-Client-Identifier': clientId,
     'X-Plex-Platform': device.platform,
-    'X-Plex-Platform-Version': '6.5',
+    'X-Plex-Platform-Version': device.platformVersion,
     'X-Plex-Device': device.model,
     'X-Plex-Device-Name': device.name,
     'X-Plex-Model': device.model,
