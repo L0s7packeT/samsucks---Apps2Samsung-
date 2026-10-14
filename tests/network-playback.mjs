@@ -7,37 +7,37 @@ const { privateIPv4, normalizeLanAddress, isLocalUri, connectionLabel } =
 const { candidateUris } = await import('../app/js/plex/auth.js');
 const { Server } = await import('../app/js/plex/server.js');
 
-assert.equal(privateIPv4('10.10.30.70'), true);
+assert.equal(privateIPv4('192.168.1.10'), true);
 assert.equal(privateIPv4('172.16.0.1'), true);
 assert.equal(privateIPv4('172.31.255.255'), true);
 assert.equal(privateIPv4('192.168.1.1'), true);
 assert.equal(privateIPv4('188.228.98.15'), false);
 assert.equal(privateIPv4('172.32.1.1'), false);
 assert.equal(privateIPv4('192.168.999.1'), false);
-assert.equal(normalizeLanAddress('10.10.30.70'), 'http://10.10.30.70:32400');
+assert.equal(normalizeLanAddress('192.168.1.10'), 'http://192.168.1.10:32400');
 assert.equal(normalizeLanAddress('http://192.168.1.10:32401'), 'http://192.168.1.10:32401');
 assert.throws(() => normalizeLanAddress('188.228.98.15'), /private LAN/);
-assert.throws(() => normalizeLanAddress('http://10.10.30.70:32400/path'), /local host/);
-assert.throws(() => normalizeLanAddress('http://user:pass@10.10.30.70'), /local host/);
-assert.equal(isLocalUri('http://10.10.30.70:32400'), true);
+assert.throws(() => normalizeLanAddress('http://192.168.1.10:32400/path'), /local host/);
+assert.throws(() => normalizeLanAddress('http://user:pass@192.168.1.10'), /local host/);
+assert.equal(isLocalUri('http://192.168.1.10:32400'), true);
 assert.equal(isLocalUri('http://188.228.98.15:32400'), false);
-assert.match(connectionLabel('http://10.10.30.70:32400'), /^Local/);
+assert.match(connectionLabel('http://192.168.1.10:32400'), /^Local/);
 
 const resource = {
   httpsRequired: false,
   connections: [
     { uri: 'https://remote.example:32400', local: false, relay: false },
-    { uri: 'https://10-10-30-70.abc.plex.direct:32400', address: '10.10.30.70', port: 32400, local: true, relay: false },
+    { uri: 'https://192-168-1-10.abc.plex.direct:32400', address: '192.168.1.10', port: 32400, local: true, relay: false },
     { uri: 'https://relay.example', local: false, relay: true },
   ],
 };
 const tiers = candidateUris(resource);
-assert.deepEqual(tiers[0], ['http://10.10.30.70:32400']);
-assert.deepEqual(tiers[1], ['https://10-10-30-70.abc.plex.direct:32400']);
+assert.deepEqual(tiers[0], ['http://192.168.1.10:32400']);
+assert.deepEqual(tiers[1], ['https://192-168-1-10.abc.plex.direct:32400']);
 assert.deepEqual(tiers[2], ['https://remote.example:32400']);
 assert.equal(candidateUris(resource, { localOnly: true }).length, 2);
 
-const server = new Server({ uri: 'http://10.10.30.70:32400', token: 'test', name: 'Test', id: 'test', local: true });
+const server = new Server({ uri: 'http://192.168.1.10:32400', token: 'test', name: 'Test', id: 'test', local: true });
 const original = new URL(server.transcodeUrl({ ratingKey: 25 }, { session: 'testing' }));
 assert.equal(original.searchParams.get('maxVideoBitrate'), '200000');
 assert.equal(original.searchParams.get('directStream'), '1');
