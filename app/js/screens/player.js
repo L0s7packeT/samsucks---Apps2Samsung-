@@ -203,10 +203,12 @@ export function PlayerScreen(initial, { offset = null } = {}) {
   // --- Opening ----------------------------------------------------------
 
   function decideMode() {
-    const directOk = DIRECT.container[media.container] && DIRECT.video[media.videoCodec] &&
-      (!audioStream || DIRECT.audio[audioStream.codec]);
+    // For Original, let AVPlay try the actual source audio first (including
+    // TrueHD passthrough), rather than assuming unsupported audio requires HLS.
+    // A native playback error triggers the existing HLS fallback.
+    const directVideo = DIRECT.container[media.container] && DIRECT.video[media.videoCodec];
     const subsOk = !subStream || isEmbeddedText(subStream) || isSidecarText(subStream);
-    return !qualityKbps && directOk && subsOk ? 'direct' : 'hls';
+    return !qualityKbps && directVideo && subsOk ? 'direct' : 'hls';
   }
 
   async function open(atMs) {
@@ -237,12 +239,11 @@ export function PlayerScreen(initial, { offset = null } = {}) {
     player.open(url, { uhd: media.videoResolution === '4k' && supports4K() });
     await player.prepare();
     if (!alive) return;
-    if (mode === 'direct') {
-      applyTracks();
-      if (atMs > 0) await player.seek(atMs);
-    }
+    if (mode === 'direct' && atMs > 0) await player.seek(atMs);
     syncSidecar();
     player.play();
+    // Samsung requires PLAYING state for audio/text track selection.
+    if (mode === 'direct') applyTracks();
     paused = false;
     started = true;
     position = atMs;
